@@ -2,9 +2,12 @@
 // @name         小雅粘粘粘
 // @namespace    http://tampermonkey.net/
 // @author       Qy
-// @version      1.8
+// @version      1.9
 // @description  小雅粘粘粘：提取题目、生成 AI 作答模板，并保存作答记录
 // @match        *://*.ai-augmented.com/*
+// @require      https://scriptcat.org/lib/6743/1.0/MathJax%20%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6.js?sha384-Tkb2NhxAQ3j7F5KiTPLq9u2jQizdt2xfUNGsyFFVweCcRXYCxGo1QJNTS/RZXSKm
+// @require      https://scriptcat.org/lib/6742/14.1.0/markdown-it.js?sha384-wLhprpjsmjc/XYIcF+LpMxd8yS1gss6jhevOp6F6zhiIoFK6AmHtm4bGKtehTani
+// @require      https://scriptcat.org/lib/6741/3.2.2/MathJax%203.2.2.js?sha384-4kE/rQ11E8xT9QgrCBTyvenkuPfQo8rXYQvJZuMgxyPOoUfpatjQPlgdv6V5yhUK
 // @grant        GM_setClipboard
 // @grant        GM_xmlhttpRequest
 // @connect      *.ai-augmented.com
@@ -16,9 +19,12 @@
 
 (function() {
     'use strict';
+
     const SCRIPT_NAME = "小雅粘粘粘";
-    const SCRIPT_VERSION = "1.8";
+    const SCRIPT_VERSION = "1.9";
+
     console.log(`[${SCRIPT_NAME} v${SCRIPT_VERSION}] 脚本已启动`);
+
     let globalQuestionsData =[];
     let globalExtractedText = "";
     let globalImageAssets = [];
@@ -47,6 +53,7 @@
         loading: false,
         error: ''
     };
+
     let globalGroupId = "";
     let globalNodeId = "";
     let globalPaperId = "";
@@ -64,9 +71,11 @@
     const PDF_SAVE_TIP = '请选择浏览器内置的“保存为 PDF / 另存为 PDF”。';
     const HOMEWORK_EXPORT_OPTIONS_KEY = "xy_homework_export_options_v18";
     const COURSE_NAME_CACHE_PREFIX = "xy_course_name_v18_";
+
     const originalXHROpen = XMLHttpRequest.prototype.open;
     const originalXHRSend = XMLHttpRequest.prototype.send;
     const originalFetch = window.fetch;
+
     function capturePaperRequestParams(rawUrl) {
         try {
             const urlObj = new URL(rawUrl, window.location.origin);
@@ -77,6 +86,7 @@
             console.warn(`[${SCRIPT_NAME}] 无法解析题目数据请求参数`, e);
         }
     }
+
     function getGroupIdFromGroupRequestUrl(rawUrl) {
         try {
             const urlObj = new URL(rawUrl, window.location.origin);
@@ -87,6 +97,7 @@
             return '';
         }
     }
+
     function captureGroupRequestParams(rawUrl) {
         const capturedGroupId = getGroupIdFromGroupRequestUrl(rawUrl);
         if (!capturedGroupId) return '';
@@ -97,6 +108,7 @@
         globalGroupId = capturedGroupId || globalGroupId;
         return capturedGroupId;
     }
+
     async function parseFetchResponseAsJson(response) {
         try {
             return await response.clone().json();
@@ -105,9 +117,11 @@
             return JSON.parse(text);
         }
     }
+
     function buildTaskKey(groupId, nodeId, paperId) {
         return [groupId || '', nodeId || '', paperId || ''].join(':');
     }
+
     function processCapturedJson(rawUrl, jsonData) {
         if (!rawUrl) return;
         if (rawUrl.includes("/queryStuPaper/v2")) {
@@ -120,6 +134,7 @@
             applyCourseInfo(jsonData?.data || jsonData, 'capture');
         }
     }
+
     function resetCapturedTaskState(reason = '') {
         if (!activeTaskKey && globalQuestionsData.length === 0) return;
         console.log(`[${SCRIPT_NAME}] 已清空当前任务缓存${reason ? `：${reason}` : ''}`);
@@ -142,6 +157,7 @@
         activeTaskKey = "";
         updateUIPanelData();
     }
+
     function currentUrlMatchesActiveTask() {
         if (!activeTaskKey) return true;
         const href = window.location.href;
@@ -154,12 +170,15 @@
             if (nodeParam && globalNodeId && nodeParam !== globalNodeId) return false;
             if (paperParam && globalPaperId && paperParam !== globalPaperId) return false;
         } catch (e) {
+
         }
+
         const requiredIds = [globalGroupId, globalNodeId].filter(Boolean);
         if (requiredIds.length > 0 && !requiredIds.every(id => href.includes(id))) return false;
         if (globalPaperId && href.includes('paper_id') && !href.includes(globalPaperId)) return false;
         return true;
     }
+
     function handleRouteChange() {
         setTimeout(() => {
             if (!currentUrlMatchesActiveTask()) {
@@ -167,6 +186,7 @@
             }
         }, 80);
     }
+
     function installRouteWatcher() {
         if (installRouteWatcher.installed) return;
         installRouteWatcher.installed = true;
@@ -184,16 +204,19 @@
         window.addEventListener('popstate', handleRouteChange);
         window.addEventListener('hashchange', handleRouteChange);
     }
+
     XMLHttpRequest.prototype.open = function(method, url, ...args) {
         this._requestUrl = typeof url === 'string' ? url : url.toString();
         return originalXHROpen.apply(this,[method, url, ...args]);
     };
+
     XMLHttpRequest.prototype.send = function(...args) {
         this.addEventListener('load', function() {
             try {
                 if (this._requestUrl && this._requestUrl.includes("/queryStuPaper/v2")) {
                     console.log(`[${SCRIPT_NAME}] 已捕获题目数据包`);
                     capturePaperRequestParams(this._requestUrl);
+
                     if (this.responseType === 'blob' && this.response) {
                         this.response.text().then(text => processCapturedJson(this._requestUrl, JSON.parse(text)));
                     } else if (this.responseType === 'json' && this.response) {
@@ -217,6 +240,7 @@
         });
         return originalXHRSend.apply(this, args);
     };
+
     window.fetch = async function(input, init) {
         const response = await originalFetch.apply(this, arguments);
         try {
@@ -238,10 +262,12 @@
         }
         return response;
     };
+
     function normalizeEntityMap(entityMap) {
         if (!entityMap || typeof entityMap !== 'object') return {};
         return entityMap;
     }
+
     function getEntityByKey(entityMap, key) {
         const normalizedMap = normalizeEntityMap(entityMap);
         if (Object.prototype.hasOwnProperty.call(normalizedMap, key)) return normalizedMap[key];
@@ -249,27 +275,34 @@
         if (Object.prototype.hasOwnProperty.call(normalizedMap, stringKey)) return normalizedMap[stringKey];
         return null;
     }
+
     function getDataType(data = {}) {
         return String(data.type || data.blockType || data.kind || '').toUpperCase();
     }
+
     function getImageSrcFromData(data = {}) {
         const type = getDataType(data);
         return data.src || data.imageUrl || data.image_url || data?.data?.src || data?.data?.imageUrl || data?.data?.image_url ||
             ((type.includes('IMAGE') || type === 'IMG') ? (data.url || data.href || data?.data?.url || data?.data?.href || '') : '');
     }
+
     function getFormulaFromData(data = {}) {
         return data.teX || data.tex || data.latex || data.formula || data.value || data.content || data.text || data?.data?.teX || data?.data?.tex || data?.data?.latex || '';
     }
+
     function isImageData(data = {}) {
         const type = getDataType(data);
         return type.includes('IMAGE') || type === 'IMG' || !!data.src || !!data.imageUrl || !!data.image_url || !!data?.data?.src;
     }
+
     function isFormulaData(data = {}) {
         const type = getDataType(data);
         return type.includes('TEX') || type.includes('MATH') || type.includes('FORMULA');
     }
+
     function parseRichContent(rawContent) {
         if (!rawContent) return { text: "", images: [], segments: [] };
+
         let contentObject = null;
         if (typeof rawContent === 'string') {
             try {
@@ -284,6 +317,7 @@
             const cleanText = String(rawContent).trim();
             return { text: cleanText, images: [], segments: cleanText ? [{ type: 'text', value: cleanText }] : [] };
         }
+
         if (!contentObject || !Array.isArray(contentObject.blocks)) {
             const fallbackText = typeof contentObject === 'string' ? contentObject.trim() : (typeof rawContent === 'string' ? rawContent.trim() : JSON.stringify(rawContent));
             return {
@@ -292,56 +326,81 @@
                 segments: fallbackText ? [{ type: 'text', value: fallbackText }] : []
             };
         }
-        const parts = [];
+
         const images = [];
         const segments = [];
         const entityMap = normalizeEntityMap(contentObject.entityMap);
-        const pushText = (text) => {
-            const cleanText = String(text || '').trim();
-            if (cleanText) {
-                parts.push(cleanText);
-                segments.push({ type: 'text', value: cleanText });
-            }
+
+        const pushText = text => {
+            const value = String(text || '');
+            if (value) segments.push({ type: 'text', value });
         };
-        const pushImage = (src) => {
+        const pushImage = src => {
             if (!src) return;
-            parts.push(`[图片]`);
             images.push({ src, kind: 'image' });
             segments.push({ type: 'image', src });
         };
-        const pushFormula = (formula) => {
+        const pushMath = (formula, display = false) => {
             const cleanFormula = String(formula || '').trim();
-            if (cleanFormula) {
-                parts.push(`[公式: ${cleanFormula}]`);
-                segments.push({ type: 'formula', value: cleanFormula });
+            if (cleanFormula) segments.push({ type: 'math', value: cleanFormula, display: display === true });
+        };
+        const pushBlockBreak = () => {
+            if (segments.length && segments[segments.length - 1].type !== 'blockBreak') {
+                segments.push({ type: 'blockBreak' });
             }
         };
         const handleMediaData = (data = {}) => {
             if (isImageData(data)) {
                 pushImage(getImageSrcFromData(data));
-            } else if (isFormulaData(data)) {
-                pushFormula(getFormulaFromData(data));
+                return true;
             }
+            if (isFormulaData(data)) {
+                pushMath(getFormulaFromData(data), data.display === true || data.displayMode === true || data.block === true);
+                return true;
+            }
+            return false;
         };
-        contentObject.blocks.forEach(block => {
+
+        contentObject.blocks.forEach((block, blockIndex) => {
             if (!block) return;
+            if (blockIndex > 0) pushBlockBreak();
             if (block.type === 'atomic' && block.data) {
                 handleMediaData(block.data);
                 return;
             }
-            pushText(block.text);
-            if (Array.isArray(block.entityRanges)) {
-                block.entityRanges.forEach(range => {
-                    const entity = getEntityByKey(entityMap, range?.key);
-                    if (entity && entity.data) handleMediaData({ ...entity.data, type: entity.type || entity.data.type });
-                });
-            }
+
+            const blockText = String(block.text || '');
+            const ranges = (Array.isArray(block.entityRanges) ? block.entityRanges : [])
+                .map(range => ({
+                    offset: Math.max(0, Number(range?.offset) || 0),
+                    length: Math.max(0, Number(range?.length) || 0),
+                    entity: getEntityByKey(entityMap, range?.key)
+                }))
+                .filter(item => item.entity && item.length >= 0)
+                .sort((a, b) => a.offset - b.offset);
+
+            let cursor = 0;
+            ranges.forEach(range => {
+                const start = Math.min(range.offset, blockText.length);
+                const end = Math.min(start + range.length, blockText.length);
+                if (start < cursor) return;
+                if (start > cursor) pushText(blockText.slice(cursor, start));
+                const data = { ...(range.entity?.data || {}), type: range.entity?.type || range.entity?.data?.type };
+                const handled = handleMediaData(data);
+                if (!handled && end > start) pushText(blockText.slice(start, end));
+                cursor = end;
+            });
+            if (cursor < blockText.length) pushText(blockText.slice(cursor));
         });
-        return { text: parts.join('\n').trim(), images, segments };
+
+        while (segments.length && segments[segments.length - 1].type === 'blockBreak') segments.pop();
+        return { text: segmentsToPlainText(segments), images, segments };
     }
+
     function extractTextFromRichJSON(rawContent) {
         return parseRichContent(rawContent).text;
     }
+
     function collectImageAssets(questionIndex, source, optionLetter, parsedContent) {
         if (!parsedContent || !Array.isArray(parsedContent.images)) return;
         parsedContent.images.forEach(image => {
@@ -361,6 +420,7 @@
             });
         });
     }
+
     function getQuestionTypeLabel(type) {
         const labels = {
             1: "[单选题]",
@@ -374,6 +434,7 @@
         };
         return labels[type] || "[其他]";
     }
+
     function parseMaybeJson(value) {
         if (typeof value !== 'string') return value;
         const trimmed = value.trim();
@@ -385,11 +446,12 @@
             return value;
         }
     }
+
     function extractPlainAnswerText(value) {
         if (value === null || value === undefined) return '';
         const parsed = parseMaybeJson(value);
         if (parsed && typeof parsed === 'object' && Array.isArray(parsed.blocks)) {
-            return parsed.blocks.map(block => block?.text || '').join('\n').trim();
+            return parseRichContent(parsed).text;
         }
         if (Array.isArray(parsed)) return parsed.map(extractPlainAnswerText).filter(Boolean).join('；');
         if (parsed && typeof parsed === 'object') {
@@ -397,17 +459,20 @@
         }
         return String(parsed).trim();
     }
+
     function extractRichAnswerDisplay(value) {
         if (value === null || value === undefined || value === '') return '';
         const parsed = parseRichContent(value);
         if (parsed.text) return parsed.text;
         return extractPlainAnswerText(value);
     }
+
     function toOptionalNumber(value) {
         if (value === null || value === undefined || value === '') return null;
         const num = Number(value);
         return Number.isFinite(num) ? num : null;
     }
+
     function normalizeAnswerIds(answer) {
         if (Array.isArray(answer)) return answer.map(item => String(item).trim()).filter(Boolean);
         if (answer === null || answer === undefined) return [];
@@ -415,6 +480,7 @@
         if (Array.isArray(parsed)) return parsed.map(item => String(item).trim()).filter(Boolean);
         return String(parsed).split(/[,，、\s]+/).map(item => item.trim()).filter(Boolean);
     }
+
     function formatChoiceAnswer(qData, answer) {
         const ids = normalizeAnswerIds(answer);
         if (!ids.length) return '未作答';
@@ -425,6 +491,7 @@
             return `${option.letter}.${text}`;
         }).join('；');
     }
+
     function formatFillAnswer(qData, answer) {
         const parsed = parseMaybeJson(answer);
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -437,6 +504,7 @@
         });
         return parts.length ? parts.join('；') : '未作答';
     }
+
     function formatMatchingAnswer(qData, answer) {
         const parsed = parseMaybeJson(answer);
         const leftItems = qData.matchingLeftItems || [];
@@ -445,6 +513,7 @@
             const text = extractPlainAnswerText(answer);
             return text || '未作答';
         }
+
         const rightById = new Map(rightItems.map(item => [String(item.id), item]));
         let hasAnswer = false;
         const lines = leftItems.map(left => {
@@ -458,8 +527,10 @@
             }).join('、');
             return `${left.letter}. ${left.text || ''} => ${rightText}`;
         });
+
         return hasAnswer ? lines.join('\n') : '未作答';
     }
+
     function formatAnswerForDisplay(qData, answer) {
         if (!qData) return extractPlainAnswerText(answer) || '未作答';
         if (qData.type === 1 || qData.type === 2 || qData.type === 5) return formatChoiceAnswer(qData, answer);
@@ -469,10 +540,12 @@
         if (qData.type === 13) return formatMatchingAnswer(qData, answer);
         return extractPlainAnswerText(answer) || '未作答';
     }
+
     function getSegmentsOrText(parsedContent, fallbackText = '') {
         if (parsedContent?.segments && parsedContent.segments.length) return parsedContent.segments;
         return fallbackText ? [{ type: 'text', value: fallbackText }] : [];
     }
+
     function getSortedItems(items, sortValue) {
         const rawItems = Array.isArray(items) ? [...items] : [];
         const sortIds = String(sortValue || '').split(',').map(id => id.trim()).filter(Boolean);
@@ -482,12 +555,14 @@
         const usedIds = new Set(sorted.map(item => String(item?.id)));
         return sorted.concat(rawItems.filter(item => !usedIds.has(String(item?.id))));
     }
+
     function getQuestionSubItems(question) {
         const subQuestions = Array.isArray(question?.subQuestions)
             ? question.subQuestions
             : (Array.isArray(question?.sub_questions) ? question.sub_questions : []);
         return getSortedItems(subQuestions, question?.sub_questions_sort);
     }
+
     function createQuestionArtifacts(q, questionIndex, sectionKey, sectionTitleText) {
         const parsedTitle = parseRichContent(q.title);
         const qTitle = parsedTitle.text;
@@ -496,6 +571,7 @@
         const matchingLeftItems = [];
         const matchingRightItems = [];
         collectImageAssets(questionIndex, 'title', null, parsedTitle);
+
         const sortedItems = getSortedItems(q.answer_items, q.answer_items_sort);
         const pdfQuestion = {
             index: questionIndex,
@@ -509,6 +585,7 @@
             blankCount: sortedItems.length,
             sectionKey
         };
+
         if (q.type === 1 || q.type === 2 || q.type === 5) {
             let letterCharCode = 65;
             sortedItems.forEach(opt => {
@@ -535,6 +612,7 @@
         } else if (q.type === 13) {
             const leftRawItems = sortedItems.filter(item => item && item.is_target_opt !== true);
             const rightRawItems = sortedItems.filter(item => item && item.is_target_opt === true);
+
             leftRawItems.forEach((opt, itemIndex) => {
                 const optionLetter = String.fromCharCode(65 + itemIndex);
                 const parsedOption = parseRichContent(opt.value);
@@ -550,6 +628,7 @@
                 matchingLeftItems.push(itemData);
                 pdfQuestion.matchingLeftItems.push(itemData);
             });
+
             rightRawItems.forEach((opt, itemIndex) => {
                 const optionLetter = String.fromCharCode(97 + itemIndex);
                 const parsedOption = parseRichContent(opt.value);
@@ -565,6 +644,7 @@
                 pdfQuestion.matchingRightItems.push(itemData);
             });
         }
+
         const qData = {
             index: questionIndex,
             id: q.id,
@@ -580,18 +660,22 @@
             matchingRightItems,
             sortedItems
         };
+
         return { qData, pdfQuestion };
     }
+
     function normalizePaperQuestions(questionsArray) {
         const sections = [];
         const flattenedQuestions = [];
         const pdfQuestions = [];
         let questionIndex = 1;
+
         (Array.isArray(questionsArray) ? questionsArray : []).forEach((rawQuestion, rawIndex) => {
             const subQuestions = getQuestionSubItems(rawQuestion);
             const parsedSectionTitle = parseRichContent(rawQuestion.title);
             const sectionTitleText = parsedSectionTitle.text;
             const sectionKey = `section-${rawQuestion?.id || rawIndex}`;
+
             if (Number(rawQuestion?.type) === 9 && subQuestions.length > 0) {
                 const section = {
                     key: sectionKey,
@@ -603,6 +687,7 @@
                     questions: []
                 };
                 collectImageAssets(questionIndex, 'title', null, parsedSectionTitle);
+
                 subQuestions.forEach(subQuestion => {
                     const artifacts = createQuestionArtifacts(subQuestion, questionIndex, sectionKey, sectionTitleText);
                     section.questionIds.push(String(artifacts.qData.id));
@@ -612,9 +697,11 @@
                     pdfQuestions.push(artifacts.pdfQuestion);
                     questionIndex++;
                 });
+
                 sections.push(section);
                 return;
             }
+
             const section = {
                 key: sectionKey,
                 titleText: '',
@@ -633,8 +720,10 @@
             sections.push(section);
             questionIndex++;
         });
+
         return { sections, flattenedQuestions, pdfQuestions };
     }
+
     function appendPromptQuestion(lines, qData) {
         lines.push(`${qData.index}. ${qData.titleText} ${qData.typeLabel}`);
         if (qData.type === 1 || qData.type === 2 || qData.type === 5) {
@@ -654,6 +743,7 @@
         }
         lines.push('');
     }
+
     function buildAiPromptText() {
         const lines = [
             '【小雅粘粘粘：AI 作答模板】'
@@ -673,6 +763,7 @@
             '--- 以下为考试内容 ---',
             ''
         );
+
         globalQuestionSections.forEach(section => {
             if (section.isGroup && section.titleText) {
                 lines.push(`【题组】`);
@@ -681,8 +772,10 @@
             }
             section.questions.forEach(question => appendPromptQuestion(lines, question));
         });
+
         return lines.join('\n');
     }
+
     function getStandardAnswerDisplay(qData, canShowStandardAnswer) {
         if (!canShowStandardAnswer || !qData) return '';
         if (qData.type === 1 || qData.type === 2 || qData.type === 5) {
@@ -711,6 +804,7 @@
         }
         return '';
     }
+
     function getQuestionResultState(answerRecord, qData) {
         if (!answerRecord) return { label: '未作答', tone: 'muted' };
         const score = toOptionalNumber(answerRecord.score);
@@ -725,6 +819,7 @@
         if (correct === 1 || (hasScore && score === 0)) return { label: '错误', tone: 'bad' };
         return { label: '待批改', tone: 'pending' };
     }
+
     function isConfirmedCorrectAnswer(answerRecord, qData) {
         if (!answerRecord) return false;
         const correct = toOptionalNumber(answerRecord.correct);
@@ -733,6 +828,7 @@
         const fullScore = toOptionalNumber(qData?.score);
         return score !== null && fullScore !== null && fullScore > 0 && score >= fullScore;
     }
+
     function getExportAnswerDisplay(qData, answerRecord, canShowStandardAnswer) {
         const standardAnswer = getStandardAnswerDisplay(qData, canShowStandardAnswer);
         if (standardAnswer) return standardAnswer;
@@ -741,6 +837,7 @@
         }
         return '';
     }
+
     function buildSubmissionResult(paperData) {
         const answerRecord = paperData?.answer_record;
         const answers = answerRecord?.answers;
@@ -750,16 +847,19 @@
                 message: globalQuestionsData.length ? '未检测到已提交作业记录。' : '等待题目数据加载...'
             };
         }
+
         const isSubmitted = Number(answerRecord.status) === 2;
         if (!isSubmitted) {
             return { state: 'not_submitted', message: '检测到作答记录，但当前任务尚未提交。' };
         }
+
         const canShowStandardAnswer = paperData?.publish_record?.is_show_answer === true;
         const answersByQuestionId = new Map(answers.map(ans => [String(ans.question_id), ans]));
         const totalScore = toOptionalNumber(paperData?.total_score);
         const actualScore = toOptionalNumber(answerRecord.actual_score ?? answerRecord.score);
         const answerNum = toOptionalNumber(answerRecord.answer_num || globalQuestionsData.length);
         const correctNum = toOptionalNumber(answerRecord.answer_correct_num);
+
         const questionResults = globalQuestionsData.map(qData => {
             const answer = answersByQuestionId.get(String(qData.id));
             const resultState = getQuestionResultState(answer, qData);
@@ -793,6 +893,7 @@
                 .map(id => resultByQuestionId.get(String(id)))
                 .filter(Boolean)
         })).filter(section => section.questionResults.length > 0);
+
         return {
             state: 'submitted',
             canShowStandardAnswer,
@@ -804,11 +905,13 @@
             sections: resultSections
         };
     }
+
     function processPaperData(jsonData) {
         if (!jsonData || !jsonData.data || !jsonData.data.questions) {
             console.warn(`[${SCRIPT_NAME}] 题目数据结构不完整，已跳过处理`);
             return;
         }
+
         globalPaperId = globalPaperId || jsonData.data.paper_id || jsonData.data.paperId || jsonData.data.id || "";
         if(!globalGroupId) globalGroupId = jsonData.data.group_id;
         if (globalCourseMeta.groupId && globalGroupId && globalCourseMeta.groupId !== globalGroupId) {
@@ -823,9 +926,11 @@
             totalScore: toOptionalNumber(jsonData.data.total_score),
             canShowStandardAnswer: jsonData.data.publish_record?.is_show_answer === true
         };
+
         globalImageAssets = [];
         globalQuestionSections = [];
         globalPdfQuestions = [];
+
         const normalized = normalizePaperQuestions(jsonData.data.questions);
         globalQuestionsData = normalized.flattenedQuestions;
         globalQuestionSections = normalized.sections;
@@ -841,6 +946,7 @@
         console.log("✅ 数据清洗完毕，已生成 v1.8 题组结构！");
         createUIPanel();
     }
+
     function getToken() {
         const cookies = document.cookie.split('; ');
         for (let cookie of cookies) {
@@ -849,10 +955,12 @@
         }
         return null;
     }
+
     async function fetchRecordId() {
         if (!globalToken) globalToken = getToken();
         if (!globalToken) throw new Error("未获取到 Token");
         if (!globalNodeId || !globalGroupId) throw new Error("未获取到课程或节点参数");
+
         const url = `${window.location.origin}/api/jx-iresource/survey/course/task/flow/v2?node_id=${globalNodeId}&group_id=${globalGroupId}`;
         const response = await fetch(url, {
             headers: { 'authorization': `Bearer ${globalToken}`, 'content-type': 'application/json' },
@@ -862,12 +970,14 @@
             throw new Error(`Record ID 请求失败：${response.status}`);
         }
         const data = await response.json();
+
         if (data.success && data.data) {
             if (data.data.task_flow_record?.[0]?.answer_record_id) return data.data.task_flow_record[0].answer_record_id;
             if (data.data.task_flow_template?.[0]?.answer_record_id) return data.data.task_flow_template[0].answer_record_id;
         }
         throw new Error("无法获取 Record ID");
     }
+
     async function submitSingleAnswer(questionId, answerPayload) {
         if (!globalPaperId) throw new Error("未获取到 paper_id");
         const requestBody = {
@@ -879,6 +989,7 @@
             paper_id: globalPaperId,
             is_try: 0
         };
+
         const response = await fetch(`${window.location.origin}/api/jx-iresource/survey/answer`, {
             method: 'POST',
             headers: {
@@ -889,6 +1000,7 @@
             credentials: 'include',
             body: JSON.stringify(requestBody)
         });
+
         let responseData = null;
         try {
             responseData = await response.clone().json();
@@ -901,6 +1013,7 @@
         }
         return responseData;
     }
+
     function parseAIAnswerBlocks(aiText) {
         const blocks = [];
         let current = null;
@@ -919,12 +1032,15 @@
             }
             if (current) current.lines.push(line.trimEnd());
         });
+
         if (current) {
             current.answer = current.lines.join('\n').trim();
             blocks.push(current);
         }
+
         return blocks.filter(block => Number.isFinite(block.index) && block.answer);
     }
+
     function createRichTextAnswer(text, questionId) {
         const lines = String(text || '').trim().split(/\r?\n/);
         return JSON.stringify({
@@ -940,23 +1056,27 @@
             entityMap: {}
         });
     }
+
     function createMatchingAnswerPayload(qData, answerText) {
         const leftByLetter = new Map((qData.matchingLeftItems || []).map(item => [String(item.letter).toUpperCase(), item]));
         const rightByLetter = new Map((qData.matchingRightItems || []).map(item => [String(item.letter).toLowerCase(), item]));
         const payload = {};
         const segments = String(answerText || '').split(/[|｜;\n；]+/).map(item => item.trim()).filter(Boolean);
+
         segments.forEach(segment => {
             const match = segment.match(/^\s*([A-Za-z])\s*(?:=>|->|[:：=])\s*(.+?)\s*$/);
             if (!match) {
                 console.warn(`[${SCRIPT_NAME}] 匹配题答案片段无法识别：${segment}`);
                 return;
             }
+
             const leftLetter = match[1].toUpperCase();
             const leftItem = leftByLetter.get(leftLetter);
             if (!leftItem) {
                 console.warn(`[${SCRIPT_NAME}] 匹配题左侧字母无效：${leftLetter}`);
                 return;
             }
+
             const rightIds = match[2]
                 .split(/[,，、\s]+/)
                 .map(token => token.trim().replace(/[.。]/g, '').toLowerCase())
@@ -970,12 +1090,15 @@
                     return rightItem.id;
                 })
                 .filter(Boolean);
+
             if (rightIds.length > 0) {
                 payload[leftItem.id] = rightIds.join(',');
             }
         });
+
         return payload;
     }
+
     async function executeFill(aiText) {
         try {
             globalRecordId = await fetchRecordId();
@@ -984,17 +1107,23 @@
             alert("初始化提交参数失败，请刷新页面重试！\n" + e.message);
             return;
         }
+
         const answerBlocks = parseAIAnswerBlocks(aiText);
         let successCount = 0;
         let failureCount = 0;
+
         for (let answerBlock of answerBlocks) {
             let qIndex = answerBlock.index;
             let qAnswerStr = answerBlock.answer.trim();
+
             let qData = globalQuestionsData.find(q => q.index === qIndex);
             if (!qData) continue;
             if (qData.type === 7) continue;
+
             let answerPayload =[];
+
             if (qData.type === 1 || qData.type === 2 || qData.type === 5) {
+
                 let letters = qAnswerStr
                     .split(/[,，、\s]+/)
                     .map(s => s.trim().toUpperCase())
@@ -1006,6 +1135,7 @@
                     }
                 });
             }
+
             else if (qData.type === 4) {
                 let blanks = qAnswerStr.split(/[|｜]/).map(s => s.trim());
                 let fillObject = {};
@@ -1016,15 +1146,18 @@
                 });
                 answerPayload = [fillObject];
             }
+
             else if (qData.type === 6 && qAnswerStr) {
                 answerPayload = [createRichTextAnswer(qAnswerStr, qData.id)];
             }
+
             else if (qData.type === 13) {
                 const matchObject = createMatchingAnswerPayload(qData, qAnswerStr);
                 if (Object.keys(matchObject).length > 0) {
                     answerPayload = [matchObject];
                 }
             }
+
             if (answerPayload.length > 0) {
                 try {
                     await submitSingleAnswer(qData.id, answerPayload);
@@ -1036,6 +1169,7 @@
                 }
             }
         }
+
         if (successCount > 0) {
             alert(`${SCRIPT_NAME} 已完成：成功保存 ${successCount} 道题，失败 ${failureCount} 道。点击确定后刷新页面查看结果。`);
             window.location.reload();
@@ -1043,6 +1177,7 @@
             alert(`${SCRIPT_NAME} 未保存任何答案，请检查 AI 输出格式或控制台错误。`);
         }
     }
+
     function setUIStatus(message, isError = false) {
         const status = document.getElementById('xy-status');
         if (status) {
@@ -1054,6 +1189,7 @@
             floatingStatus.innerText = globalQuestionsData.length > 0 ? `${globalQuestionsData.length} 道题已同步` : '等待同步题目';
         }
     }
+
     function safeLocalStorageGet(key) {
         try {
             return localStorage.getItem(key);
@@ -1062,6 +1198,7 @@
             return null;
         }
     }
+
     function safeLocalStorageSet(key, value) {
         try {
             localStorage.setItem(key, value);
@@ -1071,6 +1208,7 @@
             return false;
         }
     }
+
     function readHomeworkExportOptions() {
         const fallback = { headerMode: 'course_homework', includeAnswers: false, answerPosition: 'inline' };
         const raw = safeLocalStorageGet(HOMEWORK_EXPORT_OPTIONS_KEY);
@@ -1087,24 +1225,30 @@
             return fallback;
         }
     }
+
     function saveHomeworkExportOptions() {
         safeLocalStorageSet(HOMEWORK_EXPORT_OPTIONS_KEY, JSON.stringify(homeworkExportOptions));
     }
+
     function getCourseNameCacheKey(groupId = globalGroupId) {
         return groupId ? `${COURSE_NAME_CACHE_PREFIX}${groupId}` : '';
     }
+
     function getCachedCourseName(groupId = globalGroupId) {
         const key = getCourseNameCacheKey(groupId);
         return key ? (safeLocalStorageGet(key) || '').trim() : '';
     }
+
     function cacheCourseName(courseName, groupId = globalGroupId) {
         const key = getCourseNameCacheKey(groupId);
         const value = String(courseName || '').trim();
         if (key && value) safeLocalStorageSet(key, value);
     }
+
     function getCurrentCourseName() {
         return String(globalCourseMeta.courseName || getCachedCourseName() || '').trim();
     }
+
     function applyCourseInfo(record, source = 'unknown') {
         const courseName = String(record?.name || record?.course_name || record?.courseName || record?.group_name || record?.groupName || '').trim();
         const groupId = String(record?.id || record?.group_id || globalGroupId || '').trim();
@@ -1123,6 +1267,7 @@
         updateUIPanelData();
         console.log(`[${SCRIPT_NAME}] 已更新课程信息：${courseName} (${source})`);
     }
+
     async function fetchCourseInfoForCurrentGroup() {
         if (!globalGroupId) return;
         const cached = getCachedCourseName();
@@ -1154,6 +1299,7 @@
             console.warn(`[${SCRIPT_NAME}] 课程信息读取失败`, error);
         }
     }
+
     function isNewerVersion(latest, current) {
         if (!latest) return false;
         const latestParts = String(latest).split('.').map(part => Number(part) || 0);
@@ -1167,9 +1313,11 @@
         }
         return false;
     }
+
     function getNoticeFingerprint(record = noticeState) {
         return [record.version || '', record.updatedAt || '', record.content || ''].join('|');
     }
+
     function readNoticeCache() {
         const cached = safeLocalStorageGet(NOTICE_CACHE_KEY);
         if (!cached) return null;
@@ -1187,6 +1335,7 @@
             return null;
         }
     }
+
     function applyNoticeRecord(record, options = {}) {
         const normalized = {
             content: String(record?.content || '暂无公告'),
@@ -1208,11 +1357,14 @@
         };
         updateNoticeUI();
     }
+
     function updateNoticeUI() {
         const dot = document.querySelector('.xy-floating-dot');
         if (dot) dot.classList.toggle('xy-notice-unread', noticeState.hasUnread);
+
         const body = document.getElementById('xy-notice-body');
         if (body) body.textContent = noticeState.content || '暂无公告';
+
         const meta = document.getElementById('xy-notice-meta');
         if (meta) {
             const timeText = noticeState.updatedAt
@@ -1220,17 +1372,20 @@
                 : '暂无更新时间';
             meta.textContent = noticeState.error ? `${noticeState.error} · ${timeText}` : timeText;
         }
+
         const versionBadge = document.getElementById('xy-notice-version-badge');
         if (versionBadge) {
             const showVersion = isNewerVersion(noticeState.version, SCRIPT_VERSION);
             versionBadge.style.display = showVersion ? 'inline-flex' : 'none';
             versionBadge.textContent = showVersion ? `v${noticeState.version} 可用` : '';
         }
+
         const toggle = document.getElementById('xy-notice-toggle');
         if (toggle) {
             const needsToggle = (noticeState.content || '').length > 70 || (noticeState.content || '').includes('\n');
             toggle.style.display = needsToggle ? 'inline-flex' : 'none';
         }
+
         const refresh = document.getElementById('xy-notice-refresh');
         if (refresh) {
             refresh.disabled = noticeState.loading;
@@ -1238,6 +1393,7 @@
             refresh.innerHTML = renderIconSvg('refresh', 12);
         }
     }
+
     function fetchNoticeWithGM() {
         return new Promise((resolve, reject) => {
             if (typeof GM_xmlhttpRequest !== 'function') {
@@ -1266,6 +1422,7 @@
             });
         });
     }
+
     async function fetchNoticeRecord() {
         try {
             const response = await fetch(NOTICE_API, {
@@ -1279,10 +1436,12 @@
             return fetchNoticeWithGM();
         }
     }
+
     async function runNoticeCheck(forceRefresh = false) {
         const cached = readNoticeCache();
         if (cached) applyNoticeRecord(cached);
         if (!forceRefresh && cached && Date.now() - cached.fetchedAt < NOTICE_CACHE_TTL) return;
+
         noticeState.loading = true;
         updateNoticeUI();
         try {
@@ -1313,12 +1472,14 @@
             }
         }
     }
+
     function markNoticeAsRead() {
         if (!noticeState.hasUnread) return;
         safeLocalStorageSet(NOTICE_READ_KEY, getNoticeFingerprint());
         noticeState.hasUnread = false;
         updateNoticeUI();
     }
+
     function toggleNoticeBody() {
         const body = document.getElementById('xy-notice-body');
         const toggle = document.getElementById('xy-notice-toggle');
@@ -1326,22 +1487,26 @@
         const expanded = body.classList.toggle('xy-notice-expanded');
         toggle.textContent = expanded ? '收起' : '展开';
     }
+
     function initializeNoticeSystem() {
         const cached = readNoticeCache();
         if (cached) applyNoticeRecord(cached);
         runNoticeCheck(false);
     }
+
     function getImageAssetLabel(asset) {
         if (asset.source === 'option' && asset.optionLetter) {
             return `第 ${asset.questionIndex} 题选项 ${asset.optionLetter} 图片`;
         }
         return `第 ${asset.questionIndex} 题题干图片`;
     }
+
     async function fetchImageBlobWithPageFetch(src) {
         const response = await fetch(src, { credentials: 'include', redirect: 'follow' });
         if (!response.ok) throw new Error(`图片请求失败：${response.status}`);
         return response.blob();
     }
+
     function fetchImageBlobWithGM(src) {
         return new Promise((resolve, reject) => {
             if (typeof GM_xmlhttpRequest !== 'function') {
@@ -1366,6 +1531,7 @@
             });
         });
     }
+
     async function getImageBlob(src) {
         try {
             return await fetchImageBlobWithPageFetch(src);
@@ -1374,6 +1540,7 @@
             return fetchImageBlobWithGM(src);
         }
     }
+
     async function mapLimit(list, limit, worker) {
         const results = new Array(list.length);
         let cursor = 0;
@@ -1386,6 +1553,7 @@
         await Promise.all(runners);
         return results;
     }
+
     function blobToDataUrl(blob) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -1394,9 +1562,11 @@
             reader.readAsDataURL(blob);
         });
     }
+
     async function hydratePdfImages(assets) {
         const uniqueSrcs = Array.from(new Set((assets || []).map(asset => asset.src).filter(Boolean)));
         if (uniqueSrcs.length === 0) return new Map();
+
         const results = await mapLimit(uniqueSrcs, 3, async src => {
             try {
                 const blob = await getImageBlob(src);
@@ -1407,27 +1577,33 @@
                 return { src, ok: false, error: error?.message || String(error) };
             }
         });
+
         const imageMap = new Map();
         results.forEach(result => imageMap.set(result.src, result));
         return imageMap;
     }
+
     function getPdfFileName() {
         const now = new Date();
         const pad = value => String(value).padStart(2, '0');
         const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
         return `${SCRIPT_NAME}_AI图文题目_${stamp}.pdf`;
     }
+
     function getTimestamp() {
         const now = new Date();
         const pad = value => String(value).padStart(2, '0');
         return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
     }
+
     function sanitizeFileNamePart(value) {
         return String(value || '课程作业').replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80) || '课程作业';
     }
+
     function getHomeworkBaseName() {
         return sanitizeFileNamePart(globalPaperMeta.title || '课程作业') + `_${getTimestamp()}`;
     }
+
     function downloadBlobFile(fileName, content, mimeType) {
         const blob = new Blob([content], { type: mimeType });
         const url = URL.createObjectURL(blob);
@@ -1442,37 +1618,388 @@
             link.remove();
         }, 1000);
     }
-    function segmentsToPlainText(segments) {
-        return (segments || []).map(segment => {
-            if (segment.type === 'image') return '[图片]';
-            if (segment.type === 'formula') return `[公式: ${segment.value || ''}]`;
-            return segment.value || '';
-        }).filter(Boolean).join('\n').trim();
+
+    let markdownRenderer = null;
+
+    function getMarkdownRenderer() {
+        if (markdownRenderer !== null) return markdownRenderer || null;
+        const factory = globalThis.markdownit || globalThis.markdownIt || globalThis.MarkdownIt;
+        if (typeof factory !== 'function') {
+            markdownRenderer = false;
+            return null;
+        }
+        markdownRenderer = factory({
+            html: false,
+            linkify: false,
+            typographer: false,
+            breaks: true
+        });
+        return markdownRenderer;
     }
-    function renderPrintSegments(segments, imageMap) {
+
+    function hasBlockMarkdown(value) {
+        const text = String(value || '');
+        return /\n\s*\n/.test(text) ||
+            /(^|\n)\s{0,3}(#{1,6}\s+|>\s+|[-*+]\s+|\d+\.\s+|```|~~~)/.test(text) ||
+            /(^|\n)\s*\|.+\|\s*(\n|$)/.test(text);
+    }
+
+    function renderMarkdownSource(source, blockMode = false) {
+        const text = String(source || '');
+        if (!text) return '';
+        const renderer = getMarkdownRenderer();
+        if (renderer) {
+            const html = (blockMode || hasBlockMarkdown(text))
+                ? renderer.render(text)
+                : renderer.renderInline(text).replace(/\n/g, '<br>');
+            return html.trim();
+        }
+        return escapeHTML(text).replace(/\n/g, '<br>');
+    }
+
+    function isEscapedDelimiter(text, index) {
+        let slashCount = 0;
+        for (let i = index - 1; i >= 0 && text[i] === '\\'; i--) slashCount++;
+        return slashCount % 2 === 1;
+    }
+
+    function findUnescapedDelimiter(text, delimiter, startIndex) {
+        let index = startIndex;
+        while (index < text.length) {
+            const found = text.indexOf(delimiter, index);
+            if (found < 0) return -1;
+            if (!isEscapedDelimiter(text, found)) return found;
+            index = found + delimiter.length;
+        }
+        return -1;
+    }
+
+    function splitDollarMathText(value) {
+        const text = String(value || '');
+        if (!text.includes('$')) return text ? [{ type: 'text', value: text }] : [];
+
+        const parts = [];
+        let cursor = 0;
+        let searchIndex = 0;
+        while (searchIndex < text.length) {
+            const openIndex = text.indexOf('$', searchIndex);
+            if (openIndex < 0) break;
+            if (isEscapedDelimiter(text, openIndex)) {
+                searchIndex = openIndex + 1;
+                continue;
+            }
+
+            const display = text[openIndex + 1] === '$';
+            const delimiter = display ? '$$' : '$';
+            const formulaStart = openIndex + delimiter.length;
+            const closeIndex = findUnescapedDelimiter(text, delimiter, formulaStart);
+            if (closeIndex < 0) break;
+
+            const formula = text.slice(formulaStart, closeIndex).trim();
+            if (!formula) {
+                searchIndex = closeIndex + delimiter.length;
+                continue;
+            }
+
+            if (openIndex > cursor) parts.push({ type: 'text', value: text.slice(cursor, openIndex) });
+            parts.push({ type: 'math', value: formula, display });
+            cursor = closeIndex + delimiter.length;
+            searchIndex = cursor;
+        }
+
+        if (cursor < text.length) parts.push({ type: 'text', value: text.slice(cursor) });
+        return parts;
+    }
+
+    function getMathAssetKey(tex, display = false) {
+        return `${display ? 'display' : 'inline'}:${String(tex || '').trim()}`;
+    }
+
+    function getMathSegmentText(segment) {
+        const tex = String(segment?.value || '').trim();
+        if (!tex) return '';
+        return segment.display ? `$$${tex}$$` : `$${tex}$`;
+    }
+
+    function segmentsToPlainText(segments) {
+        const parts = [];
+        (segments || []).forEach(segment => {
+            if (!segment) return;
+            if (segment.type === 'blockBreak') {
+                parts.push('\n');
+            } else if (segment.type === 'image') {
+                parts.push('[图片]');
+            } else if (segment.type === 'math' || segment.type === 'formula') {
+                parts.push(getMathSegmentText(segment));
+            } else {
+                parts.push(String(segment.value || ''));
+            }
+        });
+        return parts.join('')
+            .replace(/[ \t]+\n/g, '\n')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+    }
+
+    function addMathEntry(mathEntries, tex, display = false) {
+        const cleanTex = String(tex || '').trim();
+        if (!cleanTex) return;
+        const key = getMathAssetKey(cleanTex, display);
+        if (!mathEntries.has(key)) {
+            mathEntries.set(key, { key, tex: cleanTex, display: display === true });
+        }
+    }
+
+    function collectMathFromDollarText(text, mathEntries) {
+        splitDollarMathText(text).forEach(part => {
+            if (part.type === 'math') addMathEntry(mathEntries, part.value, part.display);
+        });
+    }
+
+    function collectMathFromSegments(segments, mathEntries) {
+        (segments || []).forEach(segment => {
+            if (!segment) return;
+            if (segment.type === 'math' || segment.type === 'formula') {
+                addMathEntry(mathEntries, segment.value, segment.display === true);
+            } else if (segment.type === 'text') {
+                collectMathFromDollarText(segment.value, mathEntries);
+            }
+        });
+    }
+
+    function collectDocumentMathEntries(answerMap = new Map()) {
+        const mathEntries = new Map();
+        globalQuestionSections.forEach(section => collectMathFromSegments(section.titleSegments, mathEntries));
+        globalPdfQuestions.forEach(question => {
+            collectMathFromSegments(question.titleSegments, mathEntries);
+            (question.options || []).forEach(option => collectMathFromSegments(option.segments, mathEntries));
+            (question.matchingLeftItems || []).forEach(item => collectMathFromSegments(item.segments, mathEntries));
+            (question.matchingRightItems || []).forEach(item => collectMathFromSegments(item.segments, mathEntries));
+        });
+        if (answerMap && typeof answerMap.forEach === 'function') {
+            answerMap.forEach(answer => collectMathFromDollarText(answer, mathEntries));
+        }
+        return mathEntries;
+    }
+
+    function getMathJaxInstance() {
+        return globalThis.MathJax || null;
+    }
+
+    async function ensureMathJaxReady() {
+        const mathJax = getMathJaxInstance();
+        if (!mathJax) throw new Error('MathJax 未加载');
+        if (mathJax.startup?.promise) await mathJax.startup.promise;
+        if (typeof mathJax.tex2svg !== 'function') {
+            throw new Error('MathJax tex2svg 不可用');
+        }
+        return mathJax;
+    }
+
+    async function renderMathSvgMarkup(tex, display = false) {
+        const mathJax = await ensureMathJaxReady();
+        const node = mathJax.tex2svg(String(tex || ''), { display: display === true });
+        const wrapper = document.createElement('div');
+        wrapper.appendChild(node);
+        return wrapper.innerHTML;
+    }
+
+    function cssLengthToPx(value, fallback) {
+        const text = String(value || '').trim();
+        const match = text.match(/^([\d.]+)\s*(px|pt|em|ex)?$/i);
+        if (!match) return fallback;
+        const num = Number(match[1]);
+        if (!Number.isFinite(num) || num <= 0) return fallback;
+        const unit = (match[2] || 'px').toLowerCase();
+        if (unit === 'pt') return num * 96 / 72;
+        if (unit === 'em') return num * 16;
+        if (unit === 'ex') return num * 8.5;
+        return num;
+    }
+
+    function normalizeSvgMarkupForImage(mathSvgMarkup) {
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = mathSvgMarkup || '';
+        const svg = wrapper.querySelector('svg');
+        if (!svg) return '';
+        if (!svg.getAttribute('xmlns')) svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+
+        const viewBox = String(svg.getAttribute('viewBox') || '').split(/\s+/).map(Number);
+        const viewWidth = Number.isFinite(viewBox[2]) && viewBox[2] > 0 ? viewBox[2] : 1000;
+        const viewHeight = Number.isFinite(viewBox[3]) && viewBox[3] > 0 ? viewBox[3] : 400;
+        const fallbackHeight = 28;
+        const fallbackWidth = Math.max(24, fallbackHeight * viewWidth / viewHeight);
+        const width = Math.max(12, Math.ceil(cssLengthToPx(svg.getAttribute('width'), fallbackWidth)));
+        const height = Math.max(12, Math.ceil(cssLengthToPx(svg.getAttribute('height'), fallbackHeight)));
+
+        svg.setAttribute('width', String(width));
+        svg.setAttribute('height', String(height));
+        svg.setAttribute('style', 'background: transparent;');
+        return new XMLSerializer().serializeToString(svg);
+    }
+
+    function svgMarkupToPngDataUrl(mathSvgMarkup) {
+        const svgMarkup = normalizeSvgMarkupForImage(mathSvgMarkup);
+        if (!svgMarkup) return Promise.reject(new Error('未找到公式 SVG'));
+        return new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => {
+                try {
+                    const scale = 2;
+                    const width = Math.max(1, image.naturalWidth || image.width || 24);
+                    const height = Math.max(1, image.naturalHeight || image.height || 24);
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.ceil(width * scale);
+                    canvas.height = Math.ceil(height * scale);
+                    const context = canvas.getContext('2d');
+                    context.scale(scale, scale);
+                    context.drawImage(image, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/png'));
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            image.onerror = () => reject(new Error('公式 SVG 转图片失败'));
+            image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgMarkup)}`;
+        });
+    }
+
+    async function hydrateDocumentMathAssets(options = {}) {
+        const mathEntries = collectDocumentMathEntries(options.answerMap || new Map());
+        if (mathEntries.size === 0) return new Map();
+
+        try {
+            await ensureMathJaxReady();
+        } catch (error) {
+            console.warn(`[${SCRIPT_NAME}] MathJax 不可用，公式将以 TeX 文本显示`, error);
+            return new Map();
+        }
+
+        const entries = Array.from(mathEntries.values());
+        const results = await mapLimit(entries, 4, async entry => {
+            try {
+                const svg = await renderMathSvgMarkup(entry.tex, entry.display);
+                const result = { ...entry, ok: true, svg };
+                if (options.docMode === true) {
+                    try {
+                        result.pngDataUrl = await svgMarkupToPngDataUrl(svg);
+                    } catch (pngError) {
+                        console.warn(`[${SCRIPT_NAME}] 公式转图片失败，将使用 SVG 或 TeX 回退`, pngError);
+                    }
+                }
+                return result;
+            } catch (error) {
+                console.warn(`[${SCRIPT_NAME}] 公式渲染失败`, entry.tex, error);
+                return { ...entry, ok: false, error: error?.message || String(error) };
+            }
+        });
+
+        const mathMap = new Map();
+        results.forEach(result => mathMap.set(result.key, result));
+        return mathMap;
+    }
+
+    function renderMathSegment(segment, options = {}) {
+        const tex = String(segment?.value || '').trim();
+        if (!tex) return '';
+        const display = segment?.display === true;
+        const key = getMathAssetKey(tex, display);
+        const mathMap = options.mathMap instanceof Map ? options.mathMap : new Map();
+        const record = mathMap.get(key);
+        const sourceText = display ? `$$${tex}$$` : `$${tex}$`;
+        const escapedTex = escapeHTML(tex);
+
+        if (options.docMode === true && record?.pngDataUrl) {
+            return `<img class="xy-math-img ${display ? 'xy-math-display-img' : ''}" src="${escapeHTML(record.pngDataUrl)}" alt="${escapedTex}" data-tex="${escapedTex}">`;
+        }
+        if (record?.svg) {
+            return `<span class="xy-math-rendered ${display ? 'xy-math-display' : ''}" data-tex="${escapedTex}" aria-label="${escapedTex}">${record.svg}</span><span class="xy-math-source">${escapeHTML(sourceText)}</span>`;
+        }
+        return `<span class="xy-math-fallback">${escapeHTML(sourceText)}</span>`;
+    }
+
+    function renderMarkdownSegments(segments, options = {}) {
+        const mathTokens = [];
+        let source = '';
+
+        (segments || []).forEach(segment => {
+            if (!segment) return;
+            if (segment.type === 'math' || segment.type === 'formula') {
+                const token = `XYMATHPLACEHOLDER${mathTokens.length}XY`;
+                mathTokens.push({ token, html: renderMathSegment(segment, options) });
+                source += token;
+            } else if (segment.type === 'text') {
+                splitDollarMathText(segment.value).forEach(part => {
+                    if (part.type === 'math') {
+                        const token = `XYMATHPLACEHOLDER${mathTokens.length}XY`;
+                        mathTokens.push({ token, html: renderMathSegment(part, options) });
+                        source += token;
+                    } else {
+                        source += part.value || '';
+                    }
+                });
+            }
+        });
+
+        let html = renderMarkdownSource(source, options.blockMarkdown === true);
+        mathTokens.forEach(item => {
+            html = html.split(item.token).join(item.html);
+        });
+        return html;
+    }
+
+    function renderPrintImageSegment(segment, imageMap) {
+        const hydratedImages = imageMap instanceof Map ? imageMap : new Map();
+        const imageRecord = hydratedImages.get(segment.src);
+        if (!imageRecord || !imageRecord.ok || !imageRecord.dataUrl) {
+            return '<div class="xy-print-image-failed">[图片读取失败]</div>';
+        }
+        return `
+            <figure class="xy-print-image">
+                <figcaption>[图片]</figcaption>
+                <img src="${escapeHTML(imageRecord.dataUrl)}" alt="题目图片">
+            </figure>
+        `;
+    }
+
+    function renderPrintSegments(segments, imageMap, options = {}) {
         if (!segments || segments.length === 0) {
             return '<div class="xy-print-empty">[内容为空]</div>';
         }
-        return segments.map(segment => {
+
+        const htmlParts = [];
+        let inlineGroup = [];
+        const flushGroup = () => {
+            if (!inlineGroup.length) return;
+            const html = renderMarkdownSegments(inlineGroup, options);
+            if (html) htmlParts.push(`<div class="xy-print-rich-text">${html}</div>`);
+            inlineGroup = [];
+        };
+
+        segments.forEach(segment => {
+            if (!segment) return;
+            if (segment.type === 'blockBreak') {
+                flushGroup();
+                return;
+            }
             if (segment.type === 'image') {
-                const imageRecord = imageMap.get(segment.src);
-                if (!imageRecord || !imageRecord.ok || !imageRecord.dataUrl) {
-                    return '<div class="xy-print-image-failed">[图片读取失败]</div>';
-                }
-                return `
-                    <figure class="xy-print-image">
-                        <figcaption>[图片]</figcaption>
-                        <img src="${escapeHTML(imageRecord.dataUrl)}" alt="题目图片">
-                    </figure>
-                `;
+                flushGroup();
+                htmlParts.push(renderPrintImageSegment(segment, imageMap));
+                return;
             }
-            if (segment.type === 'formula') {
-                return `<div class="xy-print-rich-text">[公式: ${escapeHTML(segment.value || '')}]</div>`;
-            }
-            return `<div class="xy-print-rich-text">${escapeHTML(segment.value || '')}</div>`;
-        }).join('');
+            inlineGroup.push(segment);
+        });
+        flushGroup();
+
+        return htmlParts.join('') || '<div class="xy-print-empty">[内容为空]</div>';
     }
-    function renderPrintQuestion(question, imageMap, answerText = '') {
+
+    function renderTextWithDollarMath(value, options = {}) {
+        const segments = splitDollarMathText(value);
+        return renderMarkdownSegments(segments, { ...options, blockMarkdown: true });
+    }
+
+    function renderPrintQuestion(question, imageMap, answerText = '', options = {}) {
         let detailHtml = '';
         if (question.options && question.options.length > 0) {
             detailHtml = `
@@ -1480,7 +2007,7 @@
                     ${question.options.map(option => `
                         <div class="xy-print-option">
                             <div class="xy-print-option-letter">${escapeHTML(option.letter)}.</div>
-                            <div>${renderPrintSegments(option.segments, imageMap)}</div>
+                            <div>${renderPrintSegments(option.segments, imageMap, options)}</div>
                         </div>
                     `).join('')}
                 </div>
@@ -1496,34 +2023,37 @@
                     ${(question.matchingLeftItems || []).map(item => `
                         <div class="xy-print-option">
                             <div class="xy-print-option-letter">${escapeHTML(item.letter)}.</div>
-                            <div>${renderPrintSegments(item.segments, imageMap)}</div>
+                            <div>${renderPrintSegments(item.segments, imageMap, options)}</div>
                         </div>
                     `).join('')}
                     <div class="xy-print-match-heading">右侧候选：</div>
                     ${(question.matchingRightItems || []).map(item => `
                         <div class="xy-print-option">
                             <div class="xy-print-option-letter">${escapeHTML(item.letter)}.</div>
-                            <div>${renderPrintSegments(item.segments, imageMap)}</div>
+                            <div>${renderPrintSegments(item.segments, imageMap, options)}</div>
                         </div>
                     `).join('')}
                 </div>
             `;
         }
         const answerHtml = answerText
-            ? `<div class="xy-print-answer"><strong>答案：</strong>${escapeHTML(answerText)}</div>`
+            ? `<div class="xy-print-answer"><strong>答案：</strong><div class="xy-print-answer-body">${renderTextWithDollarMath(answerText, options)}</div></div>`
             : '';
+
         return `
             <section class="xy-print-question">
                 <h3>${escapeHTML(question.index)}. ${escapeHTML(question.typeLabel)}</h3>
-                <div class="xy-print-title">${renderPrintSegments(question.titleSegments, imageMap)}</div>
+                <div class="xy-print-title">${renderPrintSegments(question.titleSegments, imageMap, options)}</div>
                 ${detailHtml}
                 ${answerHtml}
             </section>
         `;
     }
+
     function getPdfQuestionMap() {
         return new Map(globalPdfQuestions.map(question => [String(question.id), question]));
     }
+
     function getHomeworkAnswerMap() {
         const answers = new Map();
         if (!homeworkExportOptions.includeAnswers) return answers;
@@ -1536,6 +2066,7 @@
         });
         return answers;
     }
+
     function renderPrintSection(section, imageMap, answerMap = new Map(), options = {}) {
         const pdfById = getPdfQuestionMap();
         const questionsHtml = (section.questionIds || [])
@@ -1543,29 +2074,32 @@
             .filter(Boolean)
             .map(question => {
                 const answer = options.answerPosition === 'inline' ? answerMap.get(String(question.id)) || '' : '';
-                return renderPrintQuestion(question, imageMap, answer);
+                return renderPrintQuestion(question, imageMap, answer, options);
             }).join('');
         const sectionHeader = section.isGroup && section.titleSegments?.length
-            ? `<section class="xy-print-section"><h2>${escapeHTML(section.titleText || '题组')}</h2><div class="xy-print-section-body">${renderPrintSegments(section.titleSegments, imageMap)}</div></section>`
+            ? `<section class="xy-print-section"><h2>${escapeHTML(section.titleText || '题组')}</h2><div class="xy-print-section-body">${renderPrintSegments(section.titleSegments, imageMap, { ...options, blockMarkdown: true })}</div></section>`
             : '';
         return `${sectionHeader}${questionsHtml}`;
     }
-    function renderAnswersAppendix(answerMap) {
+
+    function renderAnswersAppendix(answerMap, options = {}) {
         if (!answerMap || answerMap.size === 0 || homeworkExportOptions.answerPosition !== 'appendix') return '';
         const lines = globalQuestionsData
             .map(question => {
                 const answer = answerMap.get(String(question.id));
-                return answer ? `<div class="xy-print-answer-line"><strong>${escapeHTML(question.index)}.</strong> ${escapeHTML(answer)}</div>` : '';
+                return answer ? `<div class="xy-print-answer-line"><strong>${escapeHTML(question.index)}.</strong> ${renderTextWithDollarMath(answer, options)}</div>` : '';
             })
             .filter(Boolean)
             .join('');
         return lines ? `<section class="xy-print-appendix"><h2>答案</h2>${lines}</section>` : '';
     }
+
     function renderDocumentSections(imageMap, answerMap = new Map(), options = {}) {
         return globalQuestionSections.length
             ? globalQuestionSections.map(section => renderPrintSection(section, imageMap, answerMap, options)).join('')
             : '<div class="xy-print-empty">未读取到题目数据。</div>';
     }
+
     function buildDocumentHeaderHtml(mode) {
         if (mode === 'ai') {
             const courseName = getCurrentCourseName();
@@ -1583,6 +2117,7 @@
         </div>
     </header>`;
         }
+
         const courseName = getCurrentCourseName();
         const title = globalPaperMeta.title || '课程作业';
         if (homeworkExportOptions.headerMode === 'none') return '';
@@ -1595,13 +2130,19 @@
         const meta = courseName ? `<div class="xy-print-subtitle">课程：${escapeHTML(courseName)}</div>` : '';
         return `<header><h1>${escapeHTML(title)}</h1>${meta}</header>`;
     }
+
     function buildPrintDocumentHtml(imageMap, title, options = {}) {
         const mode = options.mode || 'ai';
-        const answerMap = mode === 'homework' ? getHomeworkAnswerMap() : new Map();
+        const answerMap = options.answerMap || (mode === 'homework' ? getHomeworkAnswerMap() : new Map());
+        const renderOptions = {
+            answerPosition: mode === 'homework' ? homeworkExportOptions.answerPosition : 'inline',
+            mathMap: options.mathMap instanceof Map ? options.mathMap : new Map(),
+            docMode: options.docMode === true
+        };
         const questionsHtml = renderDocumentSections(imageMap, answerMap, {
-            answerPosition: mode === 'homework' ? homeworkExportOptions.answerPosition : 'inline'
+            ...renderOptions
         });
-        const appendixHtml = mode === 'homework' ? renderAnswersAppendix(answerMap) : '';
+        const appendixHtml = mode === 'homework' ? renderAnswersAppendix(answerMap, renderOptions) : '';
         const headerHtml = buildDocumentHeaderHtml(mode);
         const printScript = options.autoPrint ? `
     <script>
@@ -1629,22 +2170,33 @@
     <style>
         @page { size: A4 portrait; margin: 16mm 15mm 16mm; }
         * { box-sizing: border-box; }
-        body { margin: 0; color: #111827; font: 14px/1.7 Arial, "Microsoft YaHei", sans-serif; }
+        body { margin: 0; color: #111827; font: 14px/1.75 Arial, "Microsoft YaHei", sans-serif; }
+        header { margin-bottom: 18px; padding-bottom: 12px; border-bottom: 2px solid #111827; }
+        main { counter-reset: xy-question; }
         h1 { margin: 0; color: #1f2937; font-size: 22px; line-height: 1.35; }
-        h2 { margin: 0 0 7px; color: #111827; font-size: 16px; line-height: 1.45; }
-        h3 { margin: 0 0 7px; color: #111827; font-size: 15px; line-height: 1.45; }
+        h2 { margin: 0 0 9px; color: #111827; font-size: 16px; line-height: 1.45; }
+        h3 { margin: 0 0 9px; color: #111827; font-size: 15px; line-height: 1.45; }
         .xy-print-subtitle { margin-top: 4px; color: #6b7280; font-size: 11px; }
         .xy-print-save-tip { margin-top: 10px; padding: 9px 11px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; font-size: 12px; font-weight: 700; line-height: 1.5; }
         .xy-print-rules { margin-top: 13px; padding: 9px 11px; border: 1px solid #e5e7eb; background: #f9fafb; color: #4b5563; font-size: 11px; line-height: 1.65; }
-        .xy-print-section { padding: 16px 0 8px; border-bottom: 1px solid #d1d5db; break-inside: avoid-page; page-break-inside: avoid; }
-        .xy-print-section-body { white-space: pre-wrap; overflow-wrap: anywhere; }
-        .xy-print-question { padding: 13px 0 14px; border-bottom: 1px solid #e5e7eb; break-inside: avoid-page; page-break-inside: avoid; }
-        .xy-print-title { font-weight: 600; }
-        .xy-print-rich-text { min-height: 1px; white-space: pre-wrap; overflow-wrap: anywhere; }
-        .xy-print-options, .xy-print-match { margin-top: 6px; }
-        .xy-print-option { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 2px; margin-top: 4px; padding-left: 12px; break-inside: avoid-page; page-break-inside: avoid; }
+        .xy-print-section { margin: 14px 0 16px; padding: 13px 14px; border: 1px solid #dbe2ea; border-radius: 6px; background: #f8fafc; break-inside: avoid-page; page-break-inside: avoid; }
+        .xy-print-section-body { color: #374151; overflow-wrap: anywhere; }
+        .xy-print-question { margin: 0 0 14px; padding: 0 0 15px; border-bottom: 1px solid #e5e7eb; break-inside: avoid-page; page-break-inside: avoid; }
+        .xy-print-title { font-weight: 650; }
+        .xy-print-rich-text { min-height: 1px; overflow-wrap: anywhere; }
+        .xy-print-rich-text p { margin: 0 0 7px; }
+        .xy-print-rich-text p:last-child { margin-bottom: 0; }
+        .xy-print-rich-text ul, .xy-print-rich-text ol { margin: 6px 0 8px 22px; padding: 0; }
+        .xy-print-rich-text li { margin: 2px 0; }
+        .xy-print-rich-text blockquote { margin: 8px 0; padding: 6px 10px; border-left: 3px solid #94a3b8; background: #f8fafc; color: #475569; }
+        .xy-print-rich-text code { padding: 1px 3px; border-radius: 3px; background: #f3f4f6; font-family: Consolas, "Courier New", monospace; font-size: 12px; }
+        .xy-print-rich-text pre { margin: 8px 0; padding: 9px 10px; border: 1px solid #e5e7eb; border-radius: 5px; background: #f9fafb; white-space: pre-wrap; }
+        .xy-print-rich-text table { width: 100%; margin: 8px 0; border-collapse: collapse; font-size: 12px; }
+        .xy-print-rich-text th, .xy-print-rich-text td { padding: 5px 7px; border: 1px solid #d1d5db; vertical-align: top; }
+        .xy-print-options, .xy-print-match { margin-top: 8px; }
+        .xy-print-option { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 4px; margin-top: 5px; padding-left: 12px; break-inside: avoid-page; page-break-inside: avoid; }
         .xy-print-option-letter, .xy-print-match-heading { font-weight: 700; }
-        .xy-print-match-heading { margin: 8px 0 2px 12px; color: #374151; }
+        .xy-print-match-heading { margin: 10px 0 3px 12px; color: #374151; }
         .xy-print-note { margin-top: 6px; padding-left: 12px; color: #4b5563; }
         .xy-print-warning { color: #b45309; }
         .xy-print-empty { color: #9ca3af; }
@@ -1652,9 +2204,19 @@
         .xy-print-image figcaption { margin-bottom: 4px; color: #6b7280; font-size: 11px; font-weight: 700; }
         .xy-print-image img { display: block; max-width: 100%; max-height: 88mm; object-fit: contain; }
         .xy-print-image-failed { margin: 7px 0; padding: 15px; border: 1px dashed #d1d5db; background: #f3f4f6; color: #6b7280; font-weight: 700; }
-        .xy-print-answer { margin-top: 8px; padding: 8px 10px; border-left: 3px solid #111827; background: #f9fafb; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .xy-print-answer { margin-top: 9px; padding: 8px 10px; border-left: 3px solid #111827; background: #f9fafb; overflow-wrap: anywhere; }
+        .xy-print-answer strong { display: inline-block; margin-bottom: 2px; }
+        .xy-print-answer-body { margin-top: 2px; }
         .xy-print-appendix { padding-top: 18px; break-before: page; page-break-before: always; }
-        .xy-print-answer-line { margin-top: 7px; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .xy-print-answer-line { margin-top: 8px; overflow-wrap: anywhere; }
+        .xy-math-rendered { display: inline-block; max-width: 100%; vertical-align: -0.18em; }
+        .xy-math-rendered mjx-container { margin: 0 .08em; max-width: 100%; overflow-x: auto; overflow-y: hidden; }
+        .xy-math-rendered svg { max-width: 100%; height: auto; }
+        .xy-math-display { display: block; margin: 7px 0; overflow-x: auto; text-align: center; vertical-align: baseline; }
+        .xy-math-source { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: .01; color: transparent; }
+        .xy-math-fallback { font-family: Consolas, "Courier New", monospace; overflow-wrap: anywhere; }
+        .xy-math-img { display: inline-block; max-width: 100%; max-height: 1.9em; vertical-align: -0.22em; }
+        .xy-math-display-img { display: block; max-height: none; margin: 7px auto; }
         @media print { .xy-print-save-tip { display: none; } }
     </style>
 </head>
@@ -1666,35 +2228,41 @@
 </body>
 </html>`;
     }
+
     function writePrintWindowLoading(printWindow, title) {
         printWindow.document.open();
-        printWindow.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>${escapeHTML(title)}</title></head><body style="margin:0;padding:32px;font:15px/1.7 Arial,'Microsoft YaHei',sans-serif;color:#374151;"><strong>正在生成导出文档...</strong><div style="margin-top:8px;color:#6b7280;">正在下载题目图片，请稍候。</div></body></html>`);
+        printWindow.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>${escapeHTML(title)}</title></head><body style="margin:0;padding:32px;font:15px/1.7 Arial,'Microsoft YaHei',sans-serif;color:#374151;"><strong>正在生成导出文档...</strong><div style="margin-top:8px;color:#6b7280;">正在下载题目图片并整理文档，请稍候。</div></body></html>`);
         printWindow.document.close();
     }
+
     function writePrintWindowFailure(printWindow, message) {
         printWindow.document.open();
         printWindow.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>PDF 导出失败</title></head><body style="margin:0;padding:32px;font:15px/1.7 Arial,'Microsoft YaHei',sans-serif;color:#991b1b;"><strong>PDF 导出失败</strong><div style="margin-top:8px;">${escapeHTML(message)}</div></body></html>`);
         printWindow.document.close();
     }
+
     async function exportPaperAsPdf() {
         if (!globalPdfQuestions.length) {
             setUIStatus('还没有读取到题目数据，无法导出 PDF。', true);
             return;
         }
+
         const fileName = getPdfFileName();
         const printWindow = window.open('', '_blank');
         if (!printWindow) {
             setUIStatus('打印窗口被浏览器拦截，请允许此页面打开新窗口后重试。', true);
             return;
         }
+
         writePrintWindowLoading(printWindow, fileName);
-        setUIStatus('正在下载题目图片...');
+        setUIStatus('正在下载题目图片，公式将保留 TeX 文本...');
         try {
             const imageMap = await hydratePdfImages(globalImageAssets);
             setUIStatus('正在生成 AI 图文 PDF...');
             printWindow.document.open();
             printWindow.document.write(buildPrintDocumentHtml(imageMap, fileName, { mode: 'ai', autoPrint: true }));
             printWindow.document.close();
+
             const failedCount = Array.from(imageMap.values()).filter(item => !item.ok).length;
             setUIStatus(
                 failedCount > 0
@@ -1707,6 +2275,7 @@
             throw error;
         }
     }
+
     function buildHomeworkPlainText() {
         const lines = [];
         const courseName = getCurrentCourseName();
@@ -1725,6 +2294,7 @@
                 lines.push('');
             }
         }
+
         const answerMap = getHomeworkAnswerMap();
         const appendix = [];
         globalQuestionSections.forEach(section => {
@@ -1763,13 +2333,25 @@
         }
         return lines.join('\n').trim();
     }
+
     async function buildHomeworkHtmlContent(options = {}) {
         const imageMap = await hydratePdfImages(globalImageAssets);
+        const answerMap = getHomeworkAnswerMap();
+        const mathMap = options.renderMath === false
+            ? new Map()
+            : await hydrateDocumentMathAssets({
+                answerMap,
+                docMode: options.docMode === true
+            });
         return buildPrintDocumentHtml(imageMap, globalPaperMeta.title || '课程作业', {
             mode: 'homework',
-            autoPrint: options.autoPrint === true
+            autoPrint: options.autoPrint === true,
+            docMode: options.docMode === true,
+            answerMap,
+            mathMap
         });
     }
+
     async function exportHomeworkAsPdf() {
         if (!globalQuestionsData.length) {
             setUIStatus('还没有读取到题目数据，无法导出作业。', true);
@@ -1781,7 +2363,7 @@
             return;
         }
         writePrintWindowLoading(printWindow, globalPaperMeta.title || '课程作业');
-        setUIStatus('正在生成作业 PDF...');
+        setUIStatus('正在生成作业 PDF，正在渲染公式...');
         try {
             const html = await buildHomeworkHtmlContent({ autoPrint: true });
             printWindow.document.open();
@@ -1793,16 +2375,18 @@
             throw error;
         }
     }
+
     async function exportHomeworkAsDoc() {
         if (!globalQuestionsData.length) {
             setUIStatus('还没有读取到题目数据，无法导出作业。', true);
             return;
         }
-        setUIStatus('正在生成作业 DOC...');
-        const html = await buildHomeworkHtmlContent();
+        setUIStatus('正在生成作业 DOC，公式将保留 TeX 文本...');
+        const html = await buildHomeworkHtmlContent({ docMode: true, renderMath: false });
         downloadBlobFile(`${getHomeworkBaseName()}.doc`, `\ufeff${html}`, 'application/msword;charset=utf-8');
         setUIStatus('已导出作业 DOC。');
     }
+
     function copyHomeworkText() {
         if (!globalQuestionsData.length) {
             setUIStatus('还没有读取到题目数据，无法复制作业。', true);
@@ -1812,6 +2396,7 @@
         GM_setClipboard(text, 'text');
         setUIStatus('已复制纯净作业文本。');
     }
+
     function convertBlobToPng(blob) {
         if (blob.type === 'image/png') return Promise.resolve(blob);
         return new Promise((resolve, reject) => {
@@ -1841,6 +2426,7 @@
             image.src = objectUrl;
         });
     }
+
     async function copyImageAsset(asset) {
         try {
             if (!navigator.clipboard || typeof navigator.clipboard.write !== 'function' || typeof ClipboardItem === 'undefined') {
@@ -1858,6 +2444,7 @@
             setUIStatus('图片复制失败，已复制图片链接', true);
         }
     }
+
     function renderImageAssets() {
         const container = document.getElementById('xy-image-list');
         if (!container) return;
@@ -1869,18 +2456,23 @@
             container.appendChild(empty);
             return;
         }
+
         globalImageAssets.forEach(asset => {
             const item = document.createElement('div');
             item.className = 'xy-image-item';
+
             const label = document.createElement('div');
             label.textContent = getImageAssetLabel(asset);
             label.className = 'xy-image-label';
+
             const img = document.createElement('img');
             img.src = asset.src;
             img.alt = getImageAssetLabel(asset);
             img.className = 'xy-image-preview';
+
             const actions = document.createElement('div');
             actions.className = 'xy-image-actions';
+
             const copyImageBtn = document.createElement('button');
             copyImageBtn.className = 'xy-mini-btn xy-mini-btn-primary';
             copyImageBtn.innerHTML = `${renderIconSvg('copy', 14)}<span>复制图片</span>`;
@@ -1891,6 +2483,7 @@
                 copyImageBtn.disabled = false;
                 copyImageBtn.querySelector('span').textContent = '复制图片';
             };
+
             const copyLinkBtn = document.createElement('button');
             copyLinkBtn.className = 'xy-mini-btn';
             copyLinkBtn.innerHTML = `${renderIconSvg('link', 14)}<span>复制链接</span>`;
@@ -1898,6 +2491,7 @@
                 GM_setClipboard(asset.src, 'text');
                 setUIStatus(`${getImageAssetLabel(asset)} 链接已复制。`);
             };
+
             actions.appendChild(copyImageBtn);
             actions.appendChild(copyLinkBtn);
             item.appendChild(label);
@@ -1906,6 +2500,7 @@
             container.appendChild(item);
         });
     }
+
     function escapeHTML(value) {
         return String(value ?? '').replace(/[&<>"']/g, char => ({
             '&': '&amp;',
@@ -1915,6 +2510,7 @@
             "'": '&#39;'
         }[char]));
     }
+
     function renderXyLogoSvg(size = 30) {
         return `
             <svg class="xy-logo-svg" width="${size}" height="${size}" viewBox="0 0 1024 1024" aria-hidden="true" focusable="false">
@@ -1924,6 +2520,7 @@
             </svg>
         `;
     }
+
     function renderIconSvg(name, size = 16) {
         const paths = {
             copy: '<rect x="8" y="8" width="11" height="11" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>',
@@ -1938,6 +2535,7 @@
         };
         return `<svg class="xy-icon" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${paths[name] || paths.chevron}</svg>`;
     }
+
     function injectUIStyles() {
         if (document.getElementById('xy-v18-style')) return;
         const style = document.createElement('style');
@@ -2545,6 +3143,16 @@
                 font-size: 10.5px;
                 line-height: 1.5;
             }
+            .xy-homework-export-note {
+                margin-top: 10px;
+                padding: 9px 10px;
+                border: 1px solid rgba(24, 122, 92, .18);
+                border-radius: 8px;
+                background: rgba(98, 230, 181, .08);
+                color: #356257;
+                font-size: 10.5px;
+                line-height: 1.55;
+            }
             .xy-image-item {
                 margin-top: 10px;
                 padding-top: 10px;
@@ -2767,10 +3375,12 @@
         `;
         (document.head || document.documentElement).appendChild(style);
     }
+
     function renderSubmissionResultPanel() {
         const container = document.getElementById('xy-result-content');
         if (!container) return;
         container.innerHTML = '';
+
         if (!globalSubmissionResult || globalSubmissionResult.state !== 'submitted') {
             const empty = document.createElement('div');
             empty.className = 'xy-empty-state';
@@ -2778,6 +3388,7 @@
             container.appendChild(empty);
             return;
         }
+
         const result = globalSubmissionResult;
         const questionResults = Array.isArray(result.questionResults) ? result.questionResults : [];
         const wrongCount = questionResults.filter(item => item.tone === 'bad').length;
@@ -2801,12 +3412,14 @@
             </div>
         `;
         container.appendChild(summary);
+
         if (!result.canShowStandardAnswer) {
             const note = document.createElement('div');
             note.className = 'xy-result-note';
             note.textContent = '平台未公开标准答案，本面板仅展示接口已返回的对错和分数。';
             container.appendChild(note);
         }
+
         const list = document.createElement('div');
         list.className = 'xy-result-list';
         const resultSections = Array.isArray(result.sections) && result.sections.length
@@ -2864,15 +3477,18 @@
             };
         });
     }
+
     function clampNumber(value, min, max) {
         return Math.min(Math.max(value, min), max);
     }
+
     function getDefaultCollapsedPosition() {
         return {
             left: Math.max(UI_MARGIN, window.innerWidth - DEFAULT_TRIGGER_WIDTH - 20),
             top: Math.max(UI_MARGIN, Math.round(window.innerHeight * 0.15))
         };
     }
+
     function getSavedCollapsedPosition() {
         try {
             const saved = JSON.parse(localStorage.getItem(UI_POSITION_KEY) || localStorage.getItem(LEGACY_UI_POSITION_KEY) || 'null');
@@ -2885,6 +3501,7 @@
         }
         return getDefaultCollapsedPosition();
     }
+
     function clampPositionForSize(left, top, width, height) {
         const safeWidth = Math.min(width || DEFAULT_TRIGGER_WIDTH, window.innerWidth - UI_MARGIN * 2);
         const safeHeight = Math.min(height || 60, window.innerHeight - UI_MARGIN * 2);
@@ -2893,11 +3510,13 @@
             top: clampNumber(top, UI_MARGIN, Math.max(UI_MARGIN, window.innerHeight - safeHeight - UI_MARGIN))
         };
     }
+
     function setBoxPosition(box, left, top) {
         box.style.left = `${left}px`;
         box.style.top = `${top}px`;
         box.style.right = 'auto';
     }
+
     function saveCollapsedPosition(position) {
         const trigger = document.getElementById('xy-floating-trigger');
         const width = trigger?.offsetWidth || DEFAULT_TRIGGER_WIDTH;
@@ -2906,6 +3525,7 @@
         localStorage.setItem(UI_POSITION_KEY, JSON.stringify(clamped));
         return clamped;
     }
+
     function applyCollapsedPosition(box = document.getElementById('xy-magic-box')) {
         if (!box) return;
         const trigger = document.getElementById('xy-floating-trigger');
@@ -2915,11 +3535,13 @@
         const clamped = clampPositionForSize(saved.left, saved.top, width, height);
         setBoxPosition(box, clamped.left, clamped.top);
     }
+
     function applyPanelLayout() {
         const shell = document.getElementById('xy-panel-shell');
         const resultPanel = document.getElementById('xy-result-panel');
         const mainPanel = document.getElementById('xy-panel');
         if (!shell || !mainPanel) return;
+
         const narrow = isNarrowPanelLayout();
         shell.classList.toggle('xy-narrow', narrow);
         shell.style.width = `${getDesiredShellWidth()}px`;
@@ -2929,17 +3551,21 @@
             resultPanel.style.display = panelExpanded && resultPanelVisible ? 'block' : 'none';
         }
     }
+
     function getMainPanelWidth() {
         return Math.min(410, window.innerWidth - UI_MARGIN * 2);
     }
+
     function isNarrowPanelLayout() {
         return window.innerWidth < 760;
     }
+
     function getDesiredShellWidth() {
         const mainWidth = getMainPanelWidth();
         if (!resultPanelVisible || isNarrowPanelLayout()) return mainWidth;
         return Math.min(mainWidth + 310 + 10, window.innerWidth - UI_MARGIN * 2);
     }
+
     function applyExpandedPosition() {
         const box = document.getElementById('xy-magic-box');
         if (!box) return;
@@ -2951,6 +3577,7 @@
         const clamped = clampPositionForSize(left, collapsed.top, shellWidth, boxHeight);
         setBoxPosition(box, clamped.left, clamped.top);
     }
+
     function saveExpandedPositionAsCollapsedAnchor() {
         const box = document.getElementById('xy-magic-box');
         if (!box) return;
@@ -2962,6 +3589,7 @@
             top: rect.top
         });
     }
+
     function clampUIPanelToViewport() {
         const box = document.getElementById('xy-magic-box');
         if (!box) return;
@@ -2976,6 +3604,7 @@
         const clamped = clampPositionForSize(rect.left, rect.top, width, height);
         setBoxPosition(box, clamped.left, clamped.top);
     }
+
     function makeUIPanelDraggable(box, handles) {
         let dragging = false;
         let moved = false;
@@ -2983,6 +3612,7 @@
         let startY = 0;
         let startLeft = 0;
         let startTop = 0;
+
         const onMove = event => {
             if (!dragging) return;
             const dx = event.clientX - startX;
@@ -2996,6 +3626,7 @@
             box.style.top = `${nextTop}px`;
             box.dataset.dragMoved = moved ? '1' : '0';
         };
+
         const onUp = () => {
             if (!dragging) return;
             dragging = false;
@@ -3010,6 +3641,7 @@
             window.removeEventListener('pointermove', onMove);
             window.removeEventListener('pointerup', onUp);
         };
+
         handles.forEach(handle => {
             if (!handle) return;
             handle.addEventListener('pointerdown', event => {
@@ -3028,6 +3660,7 @@
             });
         });
     }
+
     function updateUIPanelData() {
         const floatingStatus = document.getElementById('xy-floating-status');
         if (floatingStatus) floatingStatus.innerText = globalQuestionsData.length > 0 ? `${globalQuestionsData.length} 道题已同步` : '等待同步题目';
@@ -3057,6 +3690,7 @@
         applyPanelLayout();
         clampUIPanelToViewport();
     }
+
     function updateImageDrawerUI() {
         const drawer = document.getElementById('xy-image-drawer');
         const button = document.getElementById('xy-image-drawer-btn');
@@ -3066,12 +3700,14 @@
             button.title = imageDrawerVisible ? '关闭题目图片' : '打开题目图片';
         }
     }
+
     function toggleImageDrawer(visible) {
         imageDrawerVisible = visible;
         if (visible) homeworkDrawerVisible = false;
         updateImageDrawerUI();
         updateHomeworkDrawerUI();
     }
+
     function updateHomeworkDrawerUI() {
         const drawer = document.getElementById('xy-homework-drawer');
         const button = document.getElementById('xy-homework-drawer-btn');
@@ -3107,18 +3743,21 @@
             meta.textContent = `${title} · ${globalQuestionsData.length} 道题 · ${course}`;
         }
     }
+
     function toggleHomeworkDrawer(visible) {
         homeworkDrawerVisible = visible;
         if (visible) imageDrawerVisible = false;
         updateImageDrawerUI();
         updateHomeworkDrawerUI();
     }
+
     function clearMainTransition() {
         uiTransitionToken += 1;
         if (uiTransitionTimer) clearTimeout(uiTransitionTimer);
         uiTransitionTimer = null;
         return uiTransitionToken;
     }
+
     function toggleUIPanel(expanded) {
         const trigger = document.getElementById('xy-floating-trigger');
         const panelShell = document.getElementById('xy-panel-shell');
@@ -3155,6 +3794,7 @@
             }, 190);
         }
     }
+
     function toggleResultPanel(visible) {
         const panelShell = document.getElementById('xy-panel-shell');
         const resultPanel = document.getElementById('xy-result-panel');
@@ -3183,10 +3823,12 @@
             if (panelExpanded) applyExpandedPosition();
         }, 170);
     }
+
     function setButtonLabel(button, label) {
         const labelNode = button?.querySelector('[data-xy-label]');
         if (labelNode) labelNode.textContent = label;
     }
+
     function createUIPanel() {
         const existingBox = document.getElementById("xy-magic-box");
         if (existingBox) {
@@ -3199,6 +3841,7 @@
         }
         injectUIStyles();
         homeworkExportOptions = readHomeworkExportOptions();
+
         const box = document.createElement('div');
         box.id = "xy-magic-box";
         box.style.cssText = `
@@ -3207,6 +3850,7 @@
             color: #111827;
             max-width: calc(100vw - 16px);
         `;
+
         box.innerHTML = `
             <button id="xy-floating-trigger" type="button" title="点击展开，拖动移动位置">
                 <span class="xy-floating-logo">${renderXyLogoSvg(40)}</span>
@@ -3337,13 +3981,16 @@
                                 <button id="xy-homework-pdf-btn" class="xy-action-btn xy-action-btn-secondary" type="button">${renderIconSvg('file', 15)}<span data-xy-label>导出 PDF</span></button>
                                 <button id="xy-homework-doc-btn" class="xy-action-btn xy-action-btn-secondary" type="button">${renderIconSvg('file', 15)}<span data-xy-label>导出 DOC</span></button>
                             </div>
+                            <div class="xy-homework-export-note">PDF 会渲染 Markdown 与数学公式，适合直接阅读和打印；DOC 与复制文本保留 TeX 公式，避免公式图片化导致排版错乱。</div>
                         </div>
                     </aside>
                 </section>
             </div>
         `;
+
         document.body.appendChild(box);
         applyCollapsedPosition(box);
+
         const trigger = document.getElementById('xy-floating-trigger');
         trigger.onclick = event => {
             if (box.dataset.dragMoved === '1') {
@@ -3369,6 +4016,7 @@
                 clampUIPanelToViewport();
             });
         }
+
         const copyBtn = document.getElementById('xy-copy-btn');
         copyBtn.onclick = function() {
             globalExtractedText = buildAiPromptText();
@@ -3377,6 +4025,7 @@
             setUIStatus(`${SCRIPT_NAME} 已复制 ${globalQuestionsData.length} 道题。`);
             setTimeout(() => setButtonLabel(copyBtn, "复制题目给 AI"), 2000);
         };
+
         const courseInput = document.getElementById('xy-course-name-input');
         courseInput.oninput = () => {
             const courseName = courseInput.value.trim();
@@ -3385,6 +4034,7 @@
             globalExtractedText = buildAiPromptText();
             updateHomeworkDrawerUI();
         };
+
         document.getElementById('xy-homework-header-mode').onchange = event => {
             homeworkExportOptions.headerMode = event.target.value;
             saveHomeworkExportOptions();
@@ -3400,7 +4050,9 @@
             saveHomeworkExportOptions();
             updateHomeworkDrawerUI();
         };
+
         document.getElementById('xy-homework-copy-btn').onclick = copyHomeworkText;
+
         const homeworkPdfBtn = document.getElementById('xy-homework-pdf-btn');
         homeworkPdfBtn.onclick = async function() {
             homeworkPdfBtn.disabled = true;
@@ -3415,6 +4067,7 @@
                 setButtonLabel(homeworkPdfBtn, "导出 PDF");
             }
         };
+
         const homeworkDocBtn = document.getElementById('xy-homework-doc-btn');
         homeworkDocBtn.onclick = async function() {
             homeworkDocBtn.disabled = true;
@@ -3429,6 +4082,7 @@
                 setButtonLabel(homeworkDocBtn, "导出 DOC");
             }
         };
+
         const pdfBtn = document.getElementById('xy-pdf-btn');
         pdfBtn.onclick = async function() {
             pdfBtn.disabled = true;
@@ -3443,10 +4097,12 @@
                 setButtonLabel(pdfBtn, "导出图文 PDF");
             }
         };
+
         const submitBtn = document.getElementById('xy-submit-btn');
         submitBtn.onclick = async function() {
             const aiText = document.getElementById('xy-ai-input').value;
             if(!aiText.trim()) { alert("请先粘贴 AI 返回的答案。"); return; }
+
             submitBtn.disabled = true;
             setButtonLabel(submitBtn, "正在保存作答...");
             setUIStatus(`${SCRIPT_NAME} 正在保存作答记录...`);
@@ -3457,9 +4113,11 @@
                 setButtonLabel(submitBtn, "保存作答记录");
             }
         };
+
         updateUIPanelData();
         toggleUIPanel(false);
     }
+
     function mountUIPanelWhenReady() {
         if (document.body) {
             createUIPanel();
@@ -3467,7 +4125,9 @@
         }
         setTimeout(mountUIPanelWhenReady, 100);
     }
+
     installRouteWatcher();
     mountUIPanelWhenReady();
     initializeNoticeSystem();
+
 })();
