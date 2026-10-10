@@ -2,754 +2,339 @@
 // @name         小雅粘粘粘
 // @namespace    http://tampermonkey.net/
 // @author       Qy
-// @version      1.9
+// @version      2.0
 // @description  小雅粘粘粘：提取题目、生成 AI 作答模板，并保存作答记录
 // @match        *://*.ai-augmented.com/*
-// @require      https://scriptcat.org/lib/6743/1.0/MathJax%20%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6.js?sha384-Tkb2NhxAQ3j7F5KiTPLq9u2jQizdt2xfUNGsyFFVweCcRXYCxGo1QJNTS/RZXSKm
 // @require      https://scriptcat.org/lib/6742/14.1.0/markdown-it.js?sha384-wLhprpjsmjc/XYIcF+LpMxd8yS1gss6jhevOp6F6zhiIoFK6AmHtm4bGKtehTani
-// @require      https://scriptcat.org/lib/6741/3.2.2/MathJax%203.2.2.js?sha384-4kE/rQ11E8xT9QgrCBTyvenkuPfQo8rXYQvJZuMgxyPOoUfpatjQPlgdv6V5yhUK
+// @resource     mathjax https://scriptcat.org/lib/6741/3.2.2/MathJax%203.2.2.js?sha384-4kE/rQ11E8xT9QgrCBTyvenkuPfQo8rXYQvJZuMgxyPOoUfpatjQPlgdv6V5yhUK
 // @grant        GM_setClipboard
 // @grant        GM_xmlhttpRequest
+// @grant        GM_getResourceText
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        unsafeWindow
 // @connect      *.ai-augmented.com
 // @connect      *.aliyuncs.com
-// @connect      xiaoya-notice-dwafgrs416f1w156r1fasd11jt.qyrun.me
-// @icon         data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDI0IDEwMjQiPgogIDxkZWZzPgogICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMxNTFhMWEiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjMjAyNzI3Ii8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogIDwvZGVmcz4KICA8cmVjdCB4PSI2NCIgeT0iNjQiIHdpZHRoPSI4OTYiIGhlaWdodD0iODk2IiByeD0iMjEwIiBmaWxsPSJ1cmwoI2JnKSIvPgogIDxwYXRoIGZpbGw9IiNmNGYwZTgiIGQ9Ik0xOTAgMTcwaDE0MmwxMjMgMjE0LTk3IDEyNHoiLz4KICA8cGF0aCBmaWxsPSIjZjRmMGU4IiBkPSJNNzE0IDE3MGgxNDBMNDI4IDc5MkgyODZ6Ii8+CiAgPHBhdGggZmlsbD0iIzNkYjg3YyIgZD0iTTUwOCA2NjBoMzA0djEzMkg0MTZ6Ii8+Cjwvc3ZnPg==
+// @connect      xiaoya.qyovo.com
+// @icon         data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTYiIGZpbGw9IiNlOGVkZmMiLz48cG9seWdvbiBwb2ludHM9IjI1LDM1IDU4LDM1IDU0LjUsMzkuNSA1OCw0NCAyNSw0NCIgZmlsbD0iIzJmNTRkNCIvPjxjaXJjbGUgY3g9IjI1IiBjeT0iMjciIHI9IjE3IiBmaWxsPSIjMmY1NGQ0Ii8+PGNpcmNsZSBjeD0iMjUiIGN5PSIyNyIgcj0iMTIuNSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNmQ4YmVjIiBzdHJva2Utd2lkdGg9IjEuNSIvPjxjaXJjbGUgY3g9IjI1IiBjeT0iMjciIHI9IjguNSIgZmlsbD0iI2U4ZWRmYyIvPjwvc3ZnPg==
 // @run-at       document-start
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
-    const SCRIPT_NAME = "小雅粘粘粘";
-    const SCRIPT_VERSION = "1.9";
+    const NAME = '小雅粘粘粘';
+    const VERSION = '2.0';
+    const NOTICE_API = 'https://xiaoya.qyovo.com/notice';
+    const NOTICE_CHANNEL = 'zhanzhanzhan';
+    const PAPER_API = '/api/jx-iresource/survey/course/queryStuPaper/v2';
+    const GROUP_API = '/api/jx-iresource/group/queryGroup/';
+    const WATCHED_API = /queryStuPaper\/v2|group\/queryGroup\//;
+    const TYPE = { 1: '单选题', 2: '多选题', 4: '填空题', 5: '判断题', 6: '简答题', 7: '附件题', 9: '题组', 13: '匹配题' };
+    const PRINT_TIP = '在打印窗口里选择「另存为 PDF」，文字可以复制和搜索。';
 
-    console.log(`[${SCRIPT_NAME} v${SCRIPT_VERSION}] 脚本已启动`);
+    const page = unsafeWindow;
+    const rawFetch = page.fetch;
 
-    let globalQuestionsData =[];
-    let globalExtractedText = "";
-    let globalImageAssets = [];
-    let globalPdfQuestions = [];
-    let globalQuestionSections = [];
-    let globalPaperMeta = { title: '', totalScore: null };
-    let globalCourseMeta = { groupId: '', courseName: '', loading: false, error: '' };
-    let globalSubmissionResult = { state: 'waiting', message: '等待题目数据加载...' };
-    let resultPanelVisible = false;
-    let resultFilter = 'all';
-    let imageDrawerVisible = false;
-    let homeworkDrawerVisible = false;
-    let homeworkExportOptions = { headerMode: 'course_homework', includeAnswers: false, answerPosition: 'inline' };
-    let activeTaskKey = "";
-    let panelExpanded = false;
-    let lastTriggerWidth = 170;
-    let uiTransitionToken = 0;
-    let uiTransitionTimer = null;
-    let resultPanelTransitionTimer = null;
-    let noticeState = {
-        content: '公告加载中...',
-        version: '',
-        updatedAt: '',
-        fetchedAt: 0,
-        hasUnread: false,
-        loading: false,
-        error: ''
-    };
+    let paper = null;
+    let notice = null;
+    const courses = {};
 
-    let globalGroupId = "";
-    let globalNodeId = "";
-    let globalPaperId = "";
-    let globalRecordId = "";
-    let globalToken = "";
-    const UI_POSITION_KEY = "xy_magic_box_position_v16";
-    const LEGACY_UI_POSITION_KEY = "xy_magic_box_position_v13";
-    const DEFAULT_TRIGGER_WIDTH = 170;
-    const UI_MARGIN = 8;
-    const NOTICE_API = "https://xiaoya-notice-dwafgrs416f1w156r1fasd11jt.qyrun.me/notice";
-    const NOTICE_CHANNEL = "zhanzhanzhan";
-    const NOTICE_CACHE_KEY = "xy_zhanzhanzhan_notice_cache_v1";
-    const NOTICE_READ_KEY = "xy_zhanzhanzhan_notice_read_v1";
-    const NOTICE_CACHE_TTL = 6 * 60 * 60 * 1000;
-    const PDF_SAVE_TIP = '请选择浏览器内置的“保存为 PDF / 另存为 PDF”。';
-    const HOMEWORK_EXPORT_OPTIONS_KEY = "xy_homework_export_options_v18";
-    const COURSE_NAME_CACHE_PREFIX = "xy_course_name_v18_";
+    const prefs = Object.assign({ theme: '', welcomed: false, right: 24, top: 96, header: 'both', withAnswers: false, answerAt: 'inline', seen: '' }, GM_getValue('prefs', {}));
+    const savePrefs = () => GM_setValue('prefs', prefs);
 
-    const originalXHROpen = XMLHttpRequest.prototype.open;
-    const originalXHRSend = XMLHttpRequest.prototype.send;
-    const originalFetch = window.fetch;
-
-    function capturePaperRequestParams(rawUrl) {
+    function dropLegacyKeys() {
         try {
-            const urlObj = new URL(rawUrl, window.location.origin);
-            globalGroupId = urlObj.searchParams.get('group_id') || globalGroupId;
-            globalNodeId = urlObj.searchParams.get('node_id') || globalNodeId;
-            globalPaperId = urlObj.searchParams.get('paper_id') || globalPaperId;
-        } catch (e) {
-            console.warn(`[${SCRIPT_NAME}] 无法解析题目数据请求参数`, e);
+            Object.keys(page.localStorage)
+                .filter(key => /^xy_(magic_box_position_|zhanzhanzhan_notice_|homework_export_options_|course_name_v18_)/.test(key))
+                .forEach(key => page.localStorage.removeItem(key));
+        } catch (e) { }
+    }
+
+    const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const num = value => (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) ? null : Number(value);
+    const pad2 = n => String(n).padStart(2, '0');
+    const fileSafe = value => String(value || '课程作业').replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80) || '课程作业';
+
+    function stamp() {
+        const d = new Date();
+        return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}`;
+    }
+
+    function isNewer(latest, current) {
+        const a = String(latest || '').split('.').map(Number);
+        const b = String(current || '').split('.').map(Number);
+        for (let i = 0; i < Math.max(a.length, b.length); i++) {
+            if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0);
         }
+        return false;
     }
 
-    function getGroupIdFromGroupRequestUrl(rawUrl) {
-        try {
-            const urlObj = new URL(rawUrl, window.location.origin);
-            const match = urlObj.pathname.match(/\/api\/jx-iresource\/group\/queryGroup\/([^/]+)/);
-            return match && match[1] ? decodeURIComponent(match[1]) : '';
-        } catch (e) {
-            console.warn(`[${SCRIPT_NAME}] 无法解析课程信息请求参数`, e);
-            return '';
-        }
+    function parseJson(value) {
+        if (typeof value !== 'string' || /^\s*\d+\s*$/.test(value)) return value;
+        try { return JSON.parse(value); } catch (e) { return value; }
     }
 
-    function captureGroupRequestParams(rawUrl) {
-        const capturedGroupId = getGroupIdFromGroupRequestUrl(rawUrl);
-        if (!capturedGroupId) return '';
-        if (globalGroupId && capturedGroupId !== globalGroupId && (activeTaskKey || globalQuestionsData.length > 0)) {
-            console.warn(`[${SCRIPT_NAME}] 已忽略非当前任务课程信息：${capturedGroupId}`);
-            return '';
-        }
-        globalGroupId = capturedGroupId || globalGroupId;
-        return capturedGroupId;
+    function getToken() {
+        const match = document.cookie.match(/(?:^|;\s*)prd-access-token=([^;]*)/);
+        return match ? decodeURIComponent(match[1]) : '';
     }
 
-    async function parseFetchResponseAsJson(response) {
-        try {
-            return await response.clone().json();
-        } catch (jsonError) {
-            const text = await response.clone().text();
-            return JSON.parse(text);
-        }
-    }
-
-    function buildTaskKey(groupId, nodeId, paperId) {
-        return [groupId || '', nodeId || '', paperId || ''].join(':');
-    }
-
-    function processCapturedJson(rawUrl, jsonData) {
-        if (!rawUrl) return;
-        if (rawUrl.includes("/queryStuPaper/v2")) {
-            processPaperData(jsonData);
-            return;
-        }
-        if (rawUrl.includes("/api/jx-iresource/group/queryGroup/")) {
-            const capturedGroupId = captureGroupRequestParams(rawUrl);
-            if (!capturedGroupId) return;
-            applyCourseInfo(jsonData?.data || jsonData, 'capture');
-        }
-    }
-
-    function resetCapturedTaskState(reason = '') {
-        if (!activeTaskKey && globalQuestionsData.length === 0) return;
-        console.log(`[${SCRIPT_NAME}] 已清空当前任务缓存${reason ? `：${reason}` : ''}`);
-        globalQuestionsData = [];
-        globalExtractedText = "";
-        globalImageAssets = [];
-        globalPdfQuestions = [];
-        globalQuestionSections = [];
-        globalPaperMeta = { title: '', totalScore: null };
-        globalCourseMeta = { groupId: '', courseName: '', loading: false, error: '' };
-        globalSubmissionResult = { state: 'waiting', message: '等待题目数据加载...' };
-        resultPanelVisible = false;
-        resultFilter = 'all';
-        imageDrawerVisible = false;
-        homeworkDrawerVisible = false;
-        globalGroupId = "";
-        globalNodeId = "";
-        globalPaperId = "";
-        globalRecordId = "";
-        activeTaskKey = "";
-        updateUIPanelData();
-    }
-
-    function currentUrlMatchesActiveTask() {
-        if (!activeTaskKey) return true;
-        const href = window.location.href;
-        try {
-            const urlObj = new URL(href, window.location.origin);
-            const groupParam = urlObj.searchParams.get('group_id');
-            const nodeParam = urlObj.searchParams.get('node_id');
-            const paperParam = urlObj.searchParams.get('paper_id');
-            if (groupParam && globalGroupId && groupParam !== globalGroupId) return false;
-            if (nodeParam && globalNodeId && nodeParam !== globalNodeId) return false;
-            if (paperParam && globalPaperId && paperParam !== globalPaperId) return false;
-        } catch (e) {
-
-        }
-
-        const requiredIds = [globalGroupId, globalNodeId].filter(Boolean);
-        if (requiredIds.length > 0 && !requiredIds.every(id => href.includes(id))) return false;
-        if (globalPaperId && href.includes('paper_id') && !href.includes(globalPaperId)) return false;
-        return true;
-    }
-
-    function handleRouteChange() {
-        setTimeout(() => {
-            if (!currentUrlMatchesActiveTask()) {
-                resetCapturedTaskState('页面路由已离开当前作业任务');
-            }
-        }, 80);
-    }
-
-    function installRouteWatcher() {
-        if (installRouteWatcher.installed) return;
-        installRouteWatcher.installed = true;
-        const wrapHistoryMethod = methodName => {
-            const original = history[methodName];
-            if (typeof original !== 'function') return;
-            history[methodName] = function(...args) {
-                const result = original.apply(this, args);
-                handleRouteChange();
-                return result;
-            };
-        };
-        wrapHistoryMethod('pushState');
-        wrapHistoryMethod('replaceState');
-        window.addEventListener('popstate', handleRouteChange);
-        window.addEventListener('hashchange', handleRouteChange);
-    }
-
-    XMLHttpRequest.prototype.open = function(method, url, ...args) {
-        this._requestUrl = typeof url === 'string' ? url : url.toString();
-        return originalXHROpen.apply(this,[method, url, ...args]);
-    };
-
-    XMLHttpRequest.prototype.send = function(...args) {
-        this.addEventListener('load', function() {
-            try {
-                if (this._requestUrl && this._requestUrl.includes("/queryStuPaper/v2")) {
-                    console.log(`[${SCRIPT_NAME}] 已捕获题目数据包`);
-                    capturePaperRequestParams(this._requestUrl);
-
-                    if (this.responseType === 'blob' && this.response) {
-                        this.response.text().then(text => processCapturedJson(this._requestUrl, JSON.parse(text)));
-                    } else if (this.responseType === 'json' && this.response) {
-                        processCapturedJson(this._requestUrl, this.response);
-                    } else if ((this.responseType === '' || this.responseType === 'text') && this.responseText) {
-                        processCapturedJson(this._requestUrl, JSON.parse(this.responseText));
-                    }
-                } else if (this._requestUrl && this._requestUrl.includes("/api/jx-iresource/group/queryGroup/")) {
-                    captureGroupRequestParams(this._requestUrl);
-                    if (this.responseType === 'blob' && this.response) {
-                        this.response.text().then(text => processCapturedJson(this._requestUrl, JSON.parse(text)));
-                    } else if (this.responseType === 'json' && this.response) {
-                        processCapturedJson(this._requestUrl, this.response);
-                    } else if ((this.responseType === '' || this.responseType === 'text') && this.responseText) {
-                        processCapturedJson(this._requestUrl, JSON.parse(this.responseText));
-                    }
-                }
-            } catch (e) {
-                console.error("[解包失败]", e);
-            }
+    async function api(path, init = {}) {
+        const token = getToken();
+        if (!token) throw new Error('没读到登录信息，刷新页面后再试');
+        const res = await rawFetch.call(page, location.origin + path, {
+            ...init,
+            credentials: 'include',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json; charset=UTF-8' },
         });
-        return originalXHRSend.apply(this, args);
-    };
+        let data = null;
+        try { data = await res.json(); } catch (e) { }
+        if (!res.ok || !data || data.success === false) throw new Error(data?.message || `请求失败（${res.status}）`);
+        return data;
+    }
 
-    window.fetch = async function(input, init) {
-        const response = await originalFetch.apply(this, arguments);
-        try {
-            const rawUrl = typeof input === 'string' ? input : (input && input.url ? input.url : String(input));
-            if (rawUrl && rawUrl.includes("/queryStuPaper/v2")) {
-                console.log(`[${SCRIPT_NAME}] 已捕获 fetch 题目数据包`);
-                capturePaperRequestParams(rawUrl);
-                parseFetchResponseAsJson(response)
-                    .then(jsonData => processCapturedJson(rawUrl, jsonData))
-                    .catch(e => console.error(`[${SCRIPT_NAME}] fetch 数据解包失败`, e));
-            } else if (rawUrl && rawUrl.includes("/api/jx-iresource/group/queryGroup/")) {
-                captureGroupRequestParams(rawUrl);
-                parseFetchResponseAsJson(response)
-                    .then(jsonData => processCapturedJson(rawUrl, jsonData))
-                    .catch(e => console.error(`[${SCRIPT_NAME}] fetch 数据解包失败`, e));
-            }
-        } catch (e) {
-            console.error(`[${SCRIPT_NAME}] fetch 拦截处理失败`, e);
+    function gmRequest(options) {
+        return new Promise((resolve, reject) => GM_xmlhttpRequest({
+            timeout: 20000,
+            ...options,
+            onload: res => (res.status >= 200 && res.status < 300) ? resolve(res) : reject(new Error(`请求失败（${res.status}）`)),
+            onerror: () => reject(new Error('网络请求失败')),
+            ontimeout: () => reject(new Error('网络请求超时')),
+        }));
+    }
+
+    function mediaOf(data) {
+        const type = String(data?.type || '').toUpperCase();
+        if (type.includes('IMAGE') || type === 'IMG' || data?.src) {
+            const src = data.src || data.imageUrl || data.url;
+            return src ? { type: 'image', src } : null;
         }
-        return response;
-    };
-
-    function normalizeEntityMap(entityMap) {
-        if (!entityMap || typeof entityMap !== 'object') return {};
-        return entityMap;
-    }
-
-    function getEntityByKey(entityMap, key) {
-        const normalizedMap = normalizeEntityMap(entityMap);
-        if (Object.prototype.hasOwnProperty.call(normalizedMap, key)) return normalizedMap[key];
-        const stringKey = String(key);
-        if (Object.prototype.hasOwnProperty.call(normalizedMap, stringKey)) return normalizedMap[stringKey];
-        return null;
-    }
-
-    function getDataType(data = {}) {
-        return String(data.type || data.blockType || data.kind || '').toUpperCase();
-    }
-
-    function getImageSrcFromData(data = {}) {
-        const type = getDataType(data);
-        return data.src || data.imageUrl || data.image_url || data?.data?.src || data?.data?.imageUrl || data?.data?.image_url ||
-            ((type.includes('IMAGE') || type === 'IMG') ? (data.url || data.href || data?.data?.url || data?.data?.href || '') : '');
-    }
-
-    function getFormulaFromData(data = {}) {
-        return data.teX || data.tex || data.latex || data.formula || data.value || data.content || data.text || data?.data?.teX || data?.data?.tex || data?.data?.latex || '';
-    }
-
-    function isImageData(data = {}) {
-        const type = getDataType(data);
-        return type.includes('IMAGE') || type === 'IMG' || !!data.src || !!data.imageUrl || !!data.image_url || !!data?.data?.src;
-    }
-
-    function isFormulaData(data = {}) {
-        const type = getDataType(data);
-        return type.includes('TEX') || type.includes('MATH') || type.includes('FORMULA');
-    }
-
-    function parseRichContent(rawContent) {
-        if (!rawContent) return { text: "", images: [], segments: [] };
-
-        let contentObject = null;
-        if (typeof rawContent === 'string') {
-            try {
-                contentObject = JSON.parse(rawContent);
-            } catch (e) {
-                const cleanText = rawContent.replace(/^"|"$/g, '').trim();
-                return { text: cleanText, images: [], segments: cleanText ? [{ type: 'text', value: cleanText }] : [] };
-            }
-        } else if (typeof rawContent === 'object') {
-            contentObject = rawContent;
-        } else {
-            const cleanText = String(rawContent).trim();
-            return { text: cleanText, images: [], segments: cleanText ? [{ type: 'text', value: cleanText }] : [] };
+        if (type.includes('TEX') || type.includes('MATH') || type.includes('FORMULA')) {
+            const tex = String(data.teX || data.tex || data.latex || '').trim();
+            return tex ? { type: 'math', value: tex, display: data.display === true } : null;
         }
+        return undefined;
+    }
 
-        if (!contentObject || !Array.isArray(contentObject.blocks)) {
-            const fallbackText = typeof contentObject === 'string' ? contentObject.trim() : (typeof rawContent === 'string' ? rawContent.trim() : JSON.stringify(rawContent));
-            return {
-                text: fallbackText,
-                images: [],
-                segments: fallbackText ? [{ type: 'text', value: fallbackText }] : []
-            };
+    function rich(segments) {
+        return { segments, text: plainText(segments) };
+    }
+
+    function parseRich(raw) {
+        const doc = typeof raw === 'string' ? parseJson(raw) : raw;
+        if (!doc || typeof doc !== 'object' || !Array.isArray(doc.blocks)) {
+            const text = typeof raw === 'string' ? raw.replace(/^"|"$/g, '').trim()
+                : (raw && typeof raw === 'object') ? JSON.stringify(raw) : String(raw ?? '').trim();
+            return rich(text ? [{ type: 'text', value: text }] : []);
         }
-
-        const images = [];
-        const segments = [];
-        const entityMap = normalizeEntityMap(contentObject.entityMap);
-
-        const pushText = text => {
-            const value = String(text || '');
-            if (value) segments.push({ type: 'text', value });
-        };
-        const pushImage = src => {
-            if (!src) return;
-            images.push({ src, kind: 'image' });
-            segments.push({ type: 'image', src });
-        };
-        const pushMath = (formula, display = false) => {
-            const cleanFormula = String(formula || '').trim();
-            if (cleanFormula) segments.push({ type: 'math', value: cleanFormula, display: display === true });
-        };
-        const pushBlockBreak = () => {
-            if (segments.length && segments[segments.length - 1].type !== 'blockBreak') {
-                segments.push({ type: 'blockBreak' });
-            }
-        };
-        const handleMediaData = (data = {}) => {
-            if (isImageData(data)) {
-                pushImage(getImageSrcFromData(data));
-                return true;
-            }
-            if (isFormulaData(data)) {
-                pushMath(getFormulaFromData(data), data.display === true || data.displayMode === true || data.block === true);
-                return true;
-            }
-            return false;
-        };
-
-        contentObject.blocks.forEach((block, blockIndex) => {
+        const entities = doc.entityMap || {};
+        const segs = [];
+        const text = value => { if (value) segs.push({ type: 'text', value }); };
+        doc.blocks.forEach(block => {
             if (!block) return;
-            if (blockIndex > 0) pushBlockBreak();
-            if (block.type === 'atomic' && block.data) {
-                handleMediaData(block.data);
-                return;
-            }
-
-            const blockText = String(block.text || '');
-            const ranges = (Array.isArray(block.entityRanges) ? block.entityRanges : [])
-                .map(range => ({
-                    offset: Math.max(0, Number(range?.offset) || 0),
-                    length: Math.max(0, Number(range?.length) || 0),
-                    entity: getEntityByKey(entityMap, range?.key)
-                }))
-                .filter(item => item.entity && item.length >= 0)
-                .sort((a, b) => a.offset - b.offset);
-
+            if (segs.length && segs[segs.length - 1].type !== 'break') segs.push({ type: 'break' });
+            const atomic = block.type === 'atomic' && mediaOf(block.data);
+            if (atomic) { segs.push(atomic); return; }
+            const str = String(block.text || '');
+            const ranges = (block.entityRanges || [])
+                .map(r => ({ start: Math.max(0, Number(r.offset) || 0), length: Math.max(0, Number(r.length) || 0), entity: entities[r.key] }))
+                .filter(r => r.entity)
+                .sort((a, b) => a.start - b.start);
             let cursor = 0;
-            ranges.forEach(range => {
-                const start = Math.min(range.offset, blockText.length);
-                const end = Math.min(start + range.length, blockText.length);
+            ranges.forEach(r => {
+                const start = Math.min(r.start, str.length);
+                const end = Math.min(start + r.length, str.length);
                 if (start < cursor) return;
-                if (start > cursor) pushText(blockText.slice(cursor, start));
-                const data = { ...(range.entity?.data || {}), type: range.entity?.type || range.entity?.data?.type };
-                const handled = handleMediaData(data);
-                if (!handled && end > start) pushText(blockText.slice(start, end));
+                text(str.slice(cursor, start));
+                const media = mediaOf({ ...r.entity.data, type: r.entity.type || r.entity.data?.type });
+                if (media) segs.push(media);
+                else if (media === undefined) text(str.slice(start, end));
                 cursor = end;
             });
-            if (cursor < blockText.length) pushText(blockText.slice(cursor));
+            text(str.slice(cursor));
         });
-
-        while (segments.length && segments[segments.length - 1].type === 'blockBreak') segments.pop();
-        return { text: segmentsToPlainText(segments), images, segments };
+        while (segs.length && segs[segs.length - 1].type === 'break') segs.pop();
+        return rich(segs);
     }
 
-    function extractTextFromRichJSON(rawContent) {
-        return parseRichContent(rawContent).text;
+    function plainText(segments) {
+        return segments.map(s => s.type === 'break' ? '\n'
+            : s.type === 'image' ? '[图片]'
+            : s.type === 'math' ? (s.display ? `$$${s.value}$$` : `$${s.value}$`)
+            : s.value).join('')
+            .replace(/[ \t]+\n/g, '\n')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
     }
 
-    function collectImageAssets(questionIndex, source, optionLetter, parsedContent) {
-        if (!parsedContent || !Array.isArray(parsedContent.images)) return;
-        parsedContent.images.forEach(image => {
-            if (!image.src) return;
-            const duplicated = globalImageAssets.some(asset =>
-                asset.questionIndex === questionIndex &&
-                asset.source === source &&
-                asset.optionLetter === optionLetter &&
-                asset.src === image.src
-            );
-            if (duplicated) return;
-            globalImageAssets.push({
-                questionIndex,
-                source,
-                optionLetter,
-                src: image.src
-            });
+    function sortByIds(items, order) {
+        const list = Array.isArray(items) ? items.filter(Boolean) : [];
+        const ids = String(order || '').split(',').map(s => s.trim()).filter(Boolean);
+        if (!ids.length) return list;
+        const byId = new Map(list.map(item => [String(item.id), item]));
+        const sorted = ids.map(id => byId.get(id)).filter(Boolean);
+        return sorted.concat(list.filter(item => !sorted.includes(item)));
+    }
+
+    function addImages(images, content, label) {
+        content.segments.forEach(s => {
+            if (s.type === 'image' && !images.some(img => img.src === s.src && img.label === label)) images.push({ src: s.src, label });
         });
     }
 
-    function getQuestionTypeLabel(type) {
-        const labels = {
-            1: "[单选题]",
-            2: "[多选题]",
-            4: "[填空题]",
-            5: "[判断题]",
-            6: "[简答题]",
-            7: "[附件题]",
-            9: "[题组]",
-            13: "[匹配题]"
+    function buildQuestion(raw, index, images) {
+        const type = Number(raw.type);
+        const title = parseRich(raw.title);
+        const items = sortByIds(raw.answer_items, raw.answer_items_sort);
+        const q = { index, id: raw.id, type, label: TYPE[type] || '其他题型', score: num(raw.score), title, items, options: [], left: [], right: [] };
+        addImages(images, title, `第 ${index} 题 · 题干`);
+        const option = (item, letter) => {
+            const content = parseRich(item.value);
+            addImages(images, content, `第 ${index} 题 · 选项 ${letter}`);
+            return { id: item.id, letter, content, text: content.text, correct: item.answer_checked === 2, answer: item.answer };
         };
-        return labels[type] || "[其他]";
-    }
-
-    function parseMaybeJson(value) {
-        if (typeof value !== 'string') return value;
-        const trimmed = value.trim();
-        if (!trimmed) return value;
-        if (/^\d+$/.test(trimmed)) return value;
-        try {
-            return JSON.parse(trimmed);
-        } catch (e) {
-            return value;
+        if (type === 1 || type === 2 || type === 5) {
+            q.options = items.map((item, i) => option(item, String.fromCharCode(65 + i)));
+            if (type === 5) q.options.forEach(o => { if (!o.text) { o.text = o.letter === 'A' ? '正确' : '错误'; o.content = rich([{ type: 'text', value: o.text }]); } });
+        } else if (type === 13) {
+            q.left = items.filter(item => item.is_target_opt !== true).map((item, i) => option(item, String.fromCharCode(65 + i)));
+            q.right = items.filter(item => item.is_target_opt === true).map((item, i) => option(item, String.fromCharCode(97 + i)));
         }
+        return q;
     }
 
-    function extractPlainAnswerText(value) {
-        if (value === null || value === undefined) return '';
-        const parsed = parseMaybeJson(value);
-        if (parsed && typeof parsed === 'object' && Array.isArray(parsed.blocks)) {
-            return parseRichContent(parsed).text;
-        }
-        if (Array.isArray(parsed)) return parsed.map(extractPlainAnswerText).filter(Boolean).join('；');
-        if (parsed && typeof parsed === 'object') {
-            return Object.values(parsed).map(extractPlainAnswerText).filter(Boolean).join('；');
-        }
-        return String(parsed).trim();
-    }
-
-    function extractRichAnswerDisplay(value) {
-        if (value === null || value === undefined || value === '') return '';
-        const parsed = parseRichContent(value);
-        if (parsed.text) return parsed.text;
-        return extractPlainAnswerText(value);
-    }
-
-    function toOptionalNumber(value) {
-        if (value === null || value === undefined || value === '') return null;
-        const num = Number(value);
-        return Number.isFinite(num) ? num : null;
-    }
-
-    function normalizeAnswerIds(answer) {
-        if (Array.isArray(answer)) return answer.map(item => String(item).trim()).filter(Boolean);
-        if (answer === null || answer === undefined) return [];
-        const parsed = parseMaybeJson(answer);
-        if (Array.isArray(parsed)) return parsed.map(item => String(item).trim()).filter(Boolean);
-        return String(parsed).split(/[,，、\s]+/).map(item => item.trim()).filter(Boolean);
-    }
-
-    function formatChoiceAnswer(qData, answer) {
-        const ids = normalizeAnswerIds(answer);
-        if (!ids.length) return '未作答';
-        return ids.map(id => {
-            const option = qData.options?.find(item => String(item.id) === String(id));
-            if (!option) return id;
-            const text = option.text ? ` ${option.text}` : '';
-            return `${option.letter}.${text}`;
-        }).join('；');
-    }
-
-    function formatFillAnswer(qData, answer) {
-        const parsed = parseMaybeJson(answer);
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-            const text = extractPlainAnswerText(answer);
-            return text || '未作答';
-        }
-        const parts = qData.sortedItems.map((item, index) => {
-            const value = extractPlainAnswerText(parsed[item.id]);
-            return `空${index + 1}：${value || '未填'}`;
-        });
-        return parts.length ? parts.join('；') : '未作答';
-    }
-
-    function formatMatchingAnswer(qData, answer) {
-        const parsed = parseMaybeJson(answer);
-        const leftItems = qData.matchingLeftItems || [];
-        const rightItems = qData.matchingRightItems || [];
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-            const text = extractPlainAnswerText(answer);
-            return text || '未作答';
-        }
-
-        const rightById = new Map(rightItems.map(item => [String(item.id), item]));
-        let hasAnswer = false;
-        const lines = leftItems.map(left => {
-            const rawValue = parsed[left.id] ?? parsed[String(left.id)];
-            const rightIds = normalizeAnswerIds(rawValue);
-            if (!rightIds.length) return `${left.letter}. ${left.text || ''} => 未匹配`;
-            hasAnswer = true;
-            const rightText = rightIds.map(id => {
-                const right = rightById.get(String(id));
-                return right ? `${right.letter}. ${right.text || ''}` : id;
-            }).join('、');
-            return `${left.letter}. ${left.text || ''} => ${rightText}`;
-        });
-
-        return hasAnswer ? lines.join('\n') : '未作答';
-    }
-
-    function formatAnswerForDisplay(qData, answer) {
-        if (!qData) return extractPlainAnswerText(answer) || '未作答';
-        if (qData.type === 1 || qData.type === 2 || qData.type === 5) return formatChoiceAnswer(qData, answer);
-        if (qData.type === 4) return formatFillAnswer(qData, answer);
-        if (qData.type === 6) return extractRichAnswerDisplay(answer) || '未作答';
-        if (qData.type === 7) return '附件题';
-        if (qData.type === 13) return formatMatchingAnswer(qData, answer);
-        return extractPlainAnswerText(answer) || '未作答';
-    }
-
-    function getSegmentsOrText(parsedContent, fallbackText = '') {
-        if (parsedContent?.segments && parsedContent.segments.length) return parsedContent.segments;
-        return fallbackText ? [{ type: 'text', value: fallbackText }] : [];
-    }
-
-    function getSortedItems(items, sortValue) {
-        const rawItems = Array.isArray(items) ? [...items] : [];
-        const sortIds = String(sortValue || '').split(',').map(id => id.trim()).filter(Boolean);
-        if (!sortIds.length || !rawItems.length) return rawItems;
-        const byId = new Map(rawItems.map(item => [String(item?.id), item]));
-        const sorted = sortIds.map(id => byId.get(String(id))).filter(Boolean);
-        const usedIds = new Set(sorted.map(item => String(item?.id)));
-        return sorted.concat(rawItems.filter(item => !usedIds.has(String(item?.id))));
-    }
-
-    function getQuestionSubItems(question) {
-        const subQuestions = Array.isArray(question?.subQuestions)
-            ? question.subQuestions
-            : (Array.isArray(question?.sub_questions) ? question.sub_questions : []);
-        return getSortedItems(subQuestions, question?.sub_questions_sort);
-    }
-
-    function createQuestionArtifacts(q, questionIndex, sectionKey, sectionTitleText) {
-        const parsedTitle = parseRichContent(q.title);
-        const qTitle = parsedTitle.text;
-        const qTypeStr = getQuestionTypeLabel(q.type);
-        const resultOptions = [];
-        const matchingLeftItems = [];
-        const matchingRightItems = [];
-        collectImageAssets(questionIndex, 'title', null, parsedTitle);
-
-        const sortedItems = getSortedItems(q.answer_items, q.answer_items_sort);
-        const pdfQuestion = {
-            index: questionIndex,
-            id: q.id,
-            type: q.type,
-            typeLabel: qTypeStr,
-            titleSegments: getSegmentsOrText(parsedTitle, qTitle),
-            options: [],
-            matchingLeftItems: [],
-            matchingRightItems: [],
-            blankCount: sortedItems.length,
-            sectionKey
-        };
-
-        if (q.type === 1 || q.type === 2 || q.type === 5) {
-            let letterCharCode = 65;
-            sortedItems.forEach(opt => {
-                const optionLetter = String.fromCharCode(letterCharCode);
-                const parsedOption = parseRichContent(opt.value);
-                let optText = parsedOption.text;
-                collectImageAssets(questionIndex, 'option', optionLetter, parsedOption);
-                if (q.type === 5 && !optText) {
-                    optText = optionLetter === 'A' ? '正确' : '错误';
-                }
-                pdfQuestion.options.push({
-                    letter: optionLetter,
-                    text: optText,
-                    segments: getSegmentsOrText(parsedOption, optText)
-                });
-                resultOptions.push({
-                    id: opt.id,
-                    letter: optionLetter,
-                    text: optText,
-                    answerChecked: opt.answer_checked
-                });
-                letterCharCode++;
-            });
-        } else if (q.type === 13) {
-            const leftRawItems = sortedItems.filter(item => item && item.is_target_opt !== true);
-            const rightRawItems = sortedItems.filter(item => item && item.is_target_opt === true);
-
-            leftRawItems.forEach((opt, itemIndex) => {
-                const optionLetter = String.fromCharCode(65 + itemIndex);
-                const parsedOption = parseRichContent(opt.value);
-                const optText = parsedOption.text;
-                const itemData = {
-                    id: opt.id,
-                    letter: optionLetter,
-                    text: optText,
-                    answer: opt.answer,
-                    segments: getSegmentsOrText(parsedOption, optText)
-                };
-                collectImageAssets(questionIndex, 'option', optionLetter, parsedOption);
-                matchingLeftItems.push(itemData);
-                pdfQuestion.matchingLeftItems.push(itemData);
-            });
-
-            rightRawItems.forEach((opt, itemIndex) => {
-                const optionLetter = String.fromCharCode(97 + itemIndex);
-                const parsedOption = parseRichContent(opt.value);
-                const optText = parsedOption.text;
-                const itemData = {
-                    id: opt.id,
-                    letter: optionLetter,
-                    text: optText,
-                    segments: getSegmentsOrText(parsedOption, optText)
-                };
-                collectImageAssets(questionIndex, 'option', optionLetter, parsedOption);
-                matchingRightItems.push(itemData);
-                pdfQuestion.matchingRightItems.push(itemData);
-            });
-        }
-
-        const qData = {
-            index: questionIndex,
-            id: q.id,
-            type: q.type,
-            score: q.score,
-            titleText: qTitle,
-            titleSegments: pdfQuestion.titleSegments,
-            typeLabel: qTypeStr,
-            sectionKey,
-            sectionTitleText,
-            options: resultOptions,
-            matchingLeftItems,
-            matchingRightItems,
-            sortedItems
-        };
-
-        return { qData, pdfQuestion };
-    }
-
-    function normalizePaperQuestions(questionsArray) {
+    function buildPaper(data, ids) {
+        const images = [];
         const sections = [];
-        const flattenedQuestions = [];
-        const pdfQuestions = [];
-        let questionIndex = 1;
-
-        (Array.isArray(questionsArray) ? questionsArray : []).forEach((rawQuestion, rawIndex) => {
-            const subQuestions = getQuestionSubItems(rawQuestion);
-            const parsedSectionTitle = parseRichContent(rawQuestion.title);
-            const sectionTitleText = parsedSectionTitle.text;
-            const sectionKey = `section-${rawQuestion?.id || rawIndex}`;
-
-            if (Number(rawQuestion?.type) === 9 && subQuestions.length > 0) {
-                const section = {
-                    key: sectionKey,
-                    titleText: sectionTitleText,
-                    titleSegments: getSegmentsOrText(parsedSectionTitle, sectionTitleText),
-                    isGroup: true,
-                    questionIds: [],
-                    questionIndexes: [],
-                    questions: []
-                };
-                collectImageAssets(questionIndex, 'title', null, parsedSectionTitle);
-
-                subQuestions.forEach(subQuestion => {
-                    const artifacts = createQuestionArtifacts(subQuestion, questionIndex, sectionKey, sectionTitleText);
-                    section.questionIds.push(String(artifacts.qData.id));
-                    section.questionIndexes.push(questionIndex);
-                    section.questions.push(artifacts.qData);
-                    flattenedQuestions.push(artifacts.qData);
-                    pdfQuestions.push(artifacts.pdfQuestion);
-                    questionIndex++;
-                });
-
-                sections.push(section);
-                return;
-            }
-
-            const section = {
-                key: sectionKey,
-                titleText: '',
-                titleSegments: [],
-                isGroup: false,
-                questionIds: [],
-                questionIndexes: [],
-                questions: []
-            };
-            const artifacts = createQuestionArtifacts(rawQuestion, questionIndex, sectionKey, '');
-            section.questionIds.push(String(artifacts.qData.id));
-            section.questionIndexes.push(questionIndex);
-            section.questions.push(artifacts.qData);
-            flattenedQuestions.push(artifacts.qData);
-            pdfQuestions.push(artifacts.pdfQuestion);
-            sections.push(section);
-            questionIndex++;
-        });
-
-        return { sections, flattenedQuestions, pdfQuestions };
-    }
-
-    function appendPromptQuestion(lines, qData) {
-        lines.push(`${qData.index}. ${qData.titleText} ${qData.typeLabel}`);
-        if (qData.type === 1 || qData.type === 2 || qData.type === 5) {
-            qData.options.forEach(option => {
-                lines.push(`   ${option.letter}. ${option.text}`);
+        const questions = [];
+        (data.questions || []).forEach(raw => {
+            const subs = sortByIds(raw.subQuestions || raw.sub_questions, raw.sub_questions_sort);
+            const group = Number(raw.type) === 9 && subs.length > 0;
+            const section = { title: group ? parseRich(raw.title) : null, questions: [] };
+            if (group) addImages(images, section.title, `题组材料（第 ${questions.length + 1} 题起）`);
+            (group ? subs : [raw]).forEach(item => {
+                const q = buildQuestion(item, questions.length + 1, images);
+                section.questions.push(q);
+                questions.push(q);
             });
-        } else if (qData.type === 4) {
-            lines.push(`   (本题共 ${qData.sortedItems.length} 个填空)`);
-        } else if (qData.type === 7) {
-            lines.push(`   附件题无需回答。`);
-        } else if (qData.type === 13) {
-            lines.push(`   左侧：`);
-            qData.matchingLeftItems.forEach(item => lines.push(`   ${item.letter}. ${item.text}`));
-            lines.push(``);
-            lines.push(`   右侧候选：`);
-            qData.matchingRightItems.forEach(item => lines.push(`   ${item.letter}. ${item.text}`));
-        }
-        lines.push('');
+            sections.push(section);
+        });
+        const p = {
+            ...ids,
+            key: [ids.groupId, ids.nodeId, ids.paperId].join(':'),
+            title: String(data.title || '课程作业'),
+            total: num(data.total_score),
+            showAnswer: data.publish_record?.is_show_answer === true,
+            sections,
+            questions,
+            images,
+        };
+        p.result = buildResult(data, p);
+        return p;
     }
 
-    function buildAiPromptText() {
-        const lines = [
-            '【小雅粘粘粘：AI 作答模板】'
-        ];
-        const courseName = getCurrentCourseName();
-        if (courseName) lines.push(`课程：${courseName}`);
+    function answerText(value) {
+        const v = parseJson(value);
+        if (v === null || v === undefined) return '';
+        if (typeof v === 'object' && Array.isArray(v.blocks)) return parseRich(v).text;
+        if (typeof v === 'object') return Object.values(v).map(answerText).filter(Boolean).join('；');
+        return String(v).trim();
+    }
+
+    function idsOf(value) {
+        const v = parseJson(value);
+        if (Array.isArray(v)) return v.map(x => String(x).trim()).filter(Boolean);
+        return v === null || v === undefined ? [] : String(v).split(/[,，、\s]+/).filter(Boolean);
+    }
+
+    function formatMatch(q, value) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return answerText(value);
+        const right = new Map(q.right.map(r => [String(r.id), r]));
+        return q.left.map(l => {
+            const picked = idsOf(value[l.id]).map(id => right.get(id)).map(r => r ? `${r.letter}. ${r.text}` : '').filter(Boolean);
+            return picked.length ? `${l.letter}. ${l.text} → ${picked.join('、')}` : '';
+        }).filter(Boolean).join('\n');
+    }
+
+    function formatAnswer(q, value) {
+        if (q.type === 7) return '附件题';
+        if (value === null || value === undefined || value === '') return '';
+        if ([1, 2, 5].includes(q.type)) {
+            return idsOf(value).map(id => q.options.find(o => String(o.id) === id)).map(o => o ? `${o.letter}. ${o.text}` : '').filter(Boolean).join('；');
+        }
+        if (q.type === 4) {
+            const v = parseJson(value);
+            if (!v || typeof v !== 'object' || Array.isArray(v)) return answerText(v);
+            return q.items.map((item, i) => `空${i + 1}：${answerText(v[item.id]) || '未填'}`).join('；');
+        }
+        if (q.type === 13) return formatMatch(q, parseJson(value));
+        return answerText(value);
+    }
+
+    function standardAnswer(q) {
+        if ([1, 2, 5].includes(q.type)) return q.options.filter(o => o.correct).map(o => `${o.letter}. ${o.text}`).join('；');
+        if (q.type === 4) return q.items.map((item, i) => answerText(item.answer) ? `空${i + 1}：${answerText(item.answer)}` : '').filter(Boolean).join('；');
+        if (q.type === 6) return answerText(q.items[0]?.answer);
+        if (q.type === 13) {
+            const map = {};
+            q.left.forEach(l => { if (l.answer) map[l.id] = l.answer; });
+            return formatMatch(q, map);
+        }
+        return '';
+    }
+
+    function resultState(record, q) {
+        if (!record) return 'none';
+        const score = num(record.score);
+        const correct = num(record.correct);
+        if (correct === 2 || (score !== null && q.score > 0 && score >= q.score)) return 'ok';
+        if (score > 0) return 'part';
+        if (correct === 1 || score === 0) return 'bad';
+        return 'pending';
+    }
+
+    function buildResult(data, p) {
+        const record = data.answer_record;
+        if (!record || Number(record.status) !== 2) return null;
+        const byId = new Map((record.answers || []).map(a => [String(a.question_id), a]));
+        const rows = p.questions.map(q => {
+            const answer = byId.get(String(q.id));
+            const state = resultState(answer, q);
+            const mine = formatAnswer(q, answer?.answer);
+            return { q, state, score: num(answer?.score), mine, standard: p.showAnswer ? standardAnswer(q) : '', confirmed: state === 'ok' ? mine : '' };
+        });
+        return { score: num(record.actual_score ?? record.score), total: p.total, rows };
+    }
+
+    function exportAnswers(p) {
+        const map = new Map();
+        p.questions.forEach((q, i) => {
+            const answer = (p.showAnswer && standardAnswer(q)) || p.result?.rows[i].confirmed;
+            if (answer) map.set(q.index, answer);
+        });
+        return map;
+    }
+
+    function questionLines(q, indent) {
+        const lines = [];
+        const list = items => items.forEach(o => lines.push(`${indent}${o.letter}. ${o.text}`));
+        if (q.options.length) list(q.options);
+        else if (q.type === 4) lines.push(`${indent}(本题共 ${q.items.length} 个填空)`);
+        else if (q.type === 7) lines.push(`${indent}附件题无需回答。`);
+        else if (q.type === 13) {
+            lines.push(`${indent}左侧：`);
+            list(q.left);
+            lines.push('', `${indent}右侧候选：`);
+            list(q.right);
+        }
+        return lines;
+    }
+
+    function buildPrompt(p) {
+        const course = getCourse(p.groupId);
+        const lines = ['【小雅粘粘粘：AI 作答模板】'];
+        if (course) lines.push(`课程：${course}`);
         lines.push(
             '请根据以下题目，严格按照指定格式输出答案，不要输出解析、注释或额外说明。',
             '【输出格式要求】',
@@ -761,3373 +346,1415 @@
             '附件题无需回答。',
             '',
             '--- 以下为考试内容 ---',
-            ''
+            '',
         );
-
-        globalQuestionSections.forEach(section => {
-            if (section.isGroup && section.titleText) {
-                lines.push(`【题组】`);
-                lines.push(section.titleText);
-                lines.push('');
-            }
-            section.questions.forEach(question => appendPromptQuestion(lines, question));
+        p.sections.forEach(section => {
+            if (section.title?.text) lines.push('【题组】', section.title.text, '');
+            section.questions.forEach(q => lines.push(`${q.index}. ${q.title.text} [${q.label}]`, ...questionLines(q, '   '), ''));
         });
-
         return lines.join('\n');
     }
 
-    function getStandardAnswerDisplay(qData, canShowStandardAnswer) {
-        if (!canShowStandardAnswer || !qData) return '';
-        if (qData.type === 1 || qData.type === 2 || qData.type === 5) {
-            const correctOptions = qData.options?.filter(item => item.answerChecked === 2) || [];
-            return correctOptions.map(option => {
-                const text = option.text ? ` ${option.text}` : '';
-                return `${option.letter}.${text}`;
-            }).join('；');
-        }
-        if (qData.type === 4) {
-            const parts = qData.sortedItems.map((item, index) => {
-                const value = extractPlainAnswerText(item.answer);
-                return value ? `空${index + 1}：${value}` : '';
-            }).filter(Boolean);
-            return parts.join('；');
-        }
-        if (qData.type === 6 && qData.sortedItems[0]) {
-            return extractRichAnswerDisplay(qData.sortedItems[0].answer);
-        }
-        if (qData.type === 13) {
-            const mapping = {};
-            (qData.matchingLeftItems || []).forEach(left => {
-                if (left.answer) mapping[left.id] = left.answer;
+    function buildHomeworkText(p) {
+        const course = getCourse(p.groupId);
+        const head = { both: [p.title, course && `课程：${course}`], course: [course && `课程：${course}`], paper: [p.title], none: [] }[prefs.header].filter(Boolean);
+        const lines = head.length ? [...head, ''] : [];
+        const answers = prefs.withAnswers ? exportAnswers(p) : new Map();
+        p.sections.forEach(section => {
+            if (section.title?.text) lines.push(section.title.text, '');
+            section.questions.forEach(q => {
+                lines.push(`${q.index}. ${q.label}`, q.title.text, ...questionLines(q, ''));
+                if (answers.has(q.index) && prefs.answerAt === 'inline') lines.push(`答案：${answers.get(q.index)}`);
+                lines.push('');
             });
-            return Object.keys(mapping).length ? formatMatchingAnswer(qData, mapping) : '';
-        }
-        return '';
-    }
-
-    function getQuestionResultState(answerRecord, qData) {
-        if (!answerRecord) return { label: '未作答', tone: 'muted' };
-        const score = toOptionalNumber(answerRecord.score);
-        const correct = toOptionalNumber(answerRecord.correct);
-        const fullScore = toOptionalNumber(qData?.score);
-        const hasScore = score !== null;
-        const hasFullScore = fullScore !== null && fullScore > 0;
-        if (correct === 2 || (hasScore && hasFullScore && score >= fullScore)) {
-            return { label: '正确', tone: 'ok' };
-        }
-        if (hasScore && score > 0) return { label: '部分得分', tone: 'partial' };
-        if (correct === 1 || (hasScore && score === 0)) return { label: '错误', tone: 'bad' };
-        return { label: '待批改', tone: 'pending' };
-    }
-
-    function isConfirmedCorrectAnswer(answerRecord, qData) {
-        if (!answerRecord) return false;
-        const correct = toOptionalNumber(answerRecord.correct);
-        if (correct === 2) return true;
-        const score = toOptionalNumber(answerRecord.score);
-        const fullScore = toOptionalNumber(qData?.score);
-        return score !== null && fullScore !== null && fullScore > 0 && score >= fullScore;
-    }
-
-    function getExportAnswerDisplay(qData, answerRecord, canShowStandardAnswer) {
-        const standardAnswer = getStandardAnswerDisplay(qData, canShowStandardAnswer);
-        if (standardAnswer) return standardAnswer;
-        if (isConfirmedCorrectAnswer(answerRecord, qData)) {
-            return formatAnswerForDisplay(qData, answerRecord?.answer);
-        }
-        return '';
-    }
-
-    function buildSubmissionResult(paperData) {
-        const answerRecord = paperData?.answer_record;
-        const answers = answerRecord?.answers;
-        if (!answerRecord || !Array.isArray(answers) || answers.length === 0) {
-            return {
-                state: globalQuestionsData.length ? 'not_submitted' : 'waiting',
-                message: globalQuestionsData.length ? '未检测到已提交作业记录。' : '等待题目数据加载...'
-            };
-        }
-
-        const isSubmitted = Number(answerRecord.status) === 2;
-        if (!isSubmitted) {
-            return { state: 'not_submitted', message: '检测到作答记录，但当前任务尚未提交。' };
-        }
-
-        const canShowStandardAnswer = paperData?.publish_record?.is_show_answer === true;
-        const answersByQuestionId = new Map(answers.map(ans => [String(ans.question_id), ans]));
-        const totalScore = toOptionalNumber(paperData?.total_score);
-        const actualScore = toOptionalNumber(answerRecord.actual_score ?? answerRecord.score);
-        const answerNum = toOptionalNumber(answerRecord.answer_num || globalQuestionsData.length);
-        const correctNum = toOptionalNumber(answerRecord.answer_correct_num);
-
-        const questionResults = globalQuestionsData.map(qData => {
-            const answer = answersByQuestionId.get(String(qData.id));
-            const resultState = getQuestionResultState(answer, qData);
-            const score = toOptionalNumber(answer?.score);
-            const fullScore = toOptionalNumber(qData.score);
-            const scoreText = score !== null
-                ? `${score} / ${fullScore !== null ? fullScore : '-'} 分`
-                : `- / ${fullScore !== null ? fullScore : '-'} 分`;
-            return {
-                index: qData.index,
-                id: qData.id,
-                type: qData.type,
-                typeLabel: getQuestionTypeLabel(qData.type),
-                title: qData.titleText,
-                stateLabel: resultState.label,
-                tone: resultState.tone,
-                scoreText,
-                userAnswer: formatAnswerForDisplay(qData, answer?.answer),
-                standardAnswer: getStandardAnswerDisplay(qData, canShowStandardAnswer),
-                exportAnswer: getExportAnswerDisplay(qData, answer, canShowStandardAnswer),
-                sectionKey: qData.sectionKey
-            };
         });
-        const resultByQuestionId = new Map(questionResults.map(item => [String(item.id), item]));
-        const resultSections = globalQuestionSections.map(section => ({
-            key: section.key,
-            titleText: section.titleText,
-            titleSegments: section.titleSegments,
-            isGroup: section.isGroup,
-            questionResults: (section.questionIds || [])
-                .map(id => resultByQuestionId.get(String(id)))
-                .filter(Boolean)
-        })).filter(section => section.questionResults.length > 0);
-
-        return {
-            state: 'submitted',
-            canShowStandardAnswer,
-            totalScore,
-            actualScore,
-            answerNum: answerNum !== null ? answerNum : questionResults.length,
-            correctNum,
-            questionResults,
-            sections: resultSections
-        };
+        if (answers.size && prefs.answerAt === 'end') lines.push('答案', ...[...answers].map(([n, a]) => `${n}. ${a}`));
+        return lines.join('\n').trim();
     }
 
-    function processPaperData(jsonData) {
-        if (!jsonData || !jsonData.data || !jsonData.data.questions) {
-            console.warn(`[${SCRIPT_NAME}] 题目数据结构不完整，已跳过处理`);
-            return;
-        }
-
-        globalPaperId = globalPaperId || jsonData.data.paper_id || jsonData.data.paperId || jsonData.data.id || "";
-        if(!globalGroupId) globalGroupId = jsonData.data.group_id;
-        if (globalCourseMeta.groupId && globalGroupId && globalCourseMeta.groupId !== globalGroupId) {
-            globalCourseMeta = { groupId: globalGroupId, courseName: getCachedCourseName(globalGroupId), loading: false, error: '' };
-        }
-        if (globalGroupId && !globalCourseMeta.courseName) {
-            const cachedCourseName = getCachedCourseName(globalGroupId);
-            if (cachedCourseName) globalCourseMeta = { ...globalCourseMeta, groupId: globalGroupId, courseName: cachedCourseName };
-        }
-        globalPaperMeta = {
-            title: String(jsonData.data.title || '课程作业'),
-            totalScore: toOptionalNumber(jsonData.data.total_score),
-            canShowStandardAnswer: jsonData.data.publish_record?.is_show_answer === true
-        };
-
-        globalImageAssets = [];
-        globalQuestionSections = [];
-        globalPdfQuestions = [];
-
-        const normalized = normalizePaperQuestions(jsonData.data.questions);
-        globalQuestionsData = normalized.flattenedQuestions;
-        globalQuestionSections = normalized.sections;
-        globalPdfQuestions = normalized.pdfQuestions;
-        globalExtractedText = buildAiPromptText();
-        activeTaskKey = buildTaskKey(globalGroupId, globalNodeId, globalPaperId);
-        globalSubmissionResult = buildSubmissionResult(jsonData.data);
-        resultPanelVisible = globalSubmissionResult.state === 'submitted';
-        resultFilter = 'all';
-        imageDrawerVisible = false;
-        homeworkDrawerVisible = false;
-        fetchCourseInfoForCurrentGroup();
-        console.log("✅ 数据清洗完毕，已生成 v1.8 题组结构！");
-        createUIPanel();
-    }
-
-    function getToken() {
-        const cookies = document.cookie.split('; ');
-        for (let cookie of cookies) {
-            const[name, value] = cookie.split('=');
-            if (name.includes('prd-access-token')) return value;
-        }
-        return null;
-    }
-
-    async function fetchRecordId() {
-        if (!globalToken) globalToken = getToken();
-        if (!globalToken) throw new Error("未获取到 Token");
-        if (!globalNodeId || !globalGroupId) throw new Error("未获取到课程或节点参数");
-
-        const url = `${window.location.origin}/api/jx-iresource/survey/course/task/flow/v2?node_id=${globalNodeId}&group_id=${globalGroupId}`;
-        const response = await fetch(url, {
-            headers: { 'authorization': `Bearer ${globalToken}`, 'content-type': 'application/json' },
-            credentials: 'include'
-        });
-        if (!response.ok) {
-            throw new Error(`Record ID 请求失败：${response.status}`);
-        }
-        const data = await response.json();
-
-        if (data.success && data.data) {
-            if (data.data.task_flow_record?.[0]?.answer_record_id) return data.data.task_flow_record[0].answer_record_id;
-            if (data.data.task_flow_template?.[0]?.answer_record_id) return data.data.task_flow_template[0].answer_record_id;
-        }
-        throw new Error("无法获取 Record ID");
-    }
-
-    async function submitSingleAnswer(questionId, answerPayload) {
-        if (!globalPaperId) throw new Error("未获取到 paper_id");
-        const requestBody = {
-            record_id: globalRecordId,
-            question_id: questionId,
-            answer: answerPayload,
-            ext_answer: "",
-            group_id: globalGroupId,
-            paper_id: globalPaperId,
-            is_try: 0
-        };
-
-        const response = await fetch(`${window.location.origin}/api/jx-iresource/survey/answer`, {
-            method: 'POST',
-            headers: {
-                'accept': '*/*',
-                'authorization': `Bearer ${globalToken}`,
-                'content-type': 'application/json; charset=UTF-8'
-            },
-            credentials: 'include',
-            body: JSON.stringify(requestBody)
-        });
-
-        let responseData = null;
-        try {
-            responseData = await response.clone().json();
-        } catch (e) {
-            responseData = null;
-        }
-        if (!response.ok || responseData?.success === false) {
-            const message = responseData?.message || responseData?.error || response.statusText || "未知错误";
-            throw new Error(`保存作答失败：${message}`);
-        }
-        return responseData;
-    }
-
-    function parseAIAnswerBlocks(aiText) {
-        const blocks = [];
+    function parseAnswers(text) {
+        const blocks = new Map();
         let current = null;
-        String(aiText || '').split(/\r?\n/).forEach(line => {
-            const match = line.match(/^\s*(\d+)\s*=>\s*(.*)$/);
-            if (match) {
-                if (current) {
-                    current.answer = current.lines.join('\n').trim();
-                    blocks.push(current);
-                }
-                current = {
-                    index: parseInt(match[1], 10),
-                    lines: [match[2].trim()]
-                };
-                return;
+        String(text || '').split(/\r?\n/).forEach(line => {
+            if (/^\s*```/.test(line)) return;
+            const m = line.match(/^\s*(?:\*\*)?\s*(\d+)\s*(?:\*\*)?\s*(?:=>|＝>|⇒)\s*(.*)$/);
+            if (m) {
+                current = Number(m[1]);
+                blocks.set(current, [m[2]]);
+            } else if (current !== null) {
+                blocks.get(current).push(line.trimEnd());
             }
-            if (current) current.lines.push(line.trimEnd());
         });
-
-        if (current) {
-            current.answer = current.lines.join('\n').trim();
-            blocks.push(current);
-        }
-
-        return blocks.filter(block => Number.isFinite(block.index) && block.answer);
+        const answers = new Map();
+        blocks.forEach((lines, n) => {
+            const value = lines.join('\n').trim();
+            if (value) answers.set(n, value);
+        });
+        return answers;
     }
 
-    function createRichTextAnswer(text, questionId) {
-        const lines = String(text || '').trim().split(/\r?\n/);
+    function richTextAnswer(text) {
         return JSON.stringify({
-            blocks: lines.map((line, index) => ({
-                key: `ans-${index}`,
-                text: line,
-                type: 'unstyled',
-                depth: 0,
-                inlineStyleRanges: [],
-                entityRanges: [],
-                data: {}
-            })),
-            entityMap: {}
+            blocks: String(text).split(/\r?\n/).map((line, i) => ({ key: `ans-${i}`, text: line, type: 'unstyled', depth: 0, inlineStyleRanges: [], entityRanges: [], data: {} })),
+            entityMap: {},
         });
     }
 
-    function createMatchingAnswerPayload(qData, answerText) {
-        const leftByLetter = new Map((qData.matchingLeftItems || []).map(item => [String(item.letter).toUpperCase(), item]));
-        const rightByLetter = new Map((qData.matchingRightItems || []).map(item => [String(item.letter).toLowerCase(), item]));
-        const payload = {};
-        const segments = String(answerText || '').split(/[|｜;\n；]+/).map(item => item.trim()).filter(Boolean);
+    const JUDGE_TRUE = /^(正确|对|是|√|✓|✔|T|TRUE)(?![A-Za-z])/i;
+    const JUDGE_FALSE = /^(错误|错|否|×|✗|✘|X|F|FALSE)(?![A-Za-z])/i;
 
-        segments.forEach(segment => {
-            const match = segment.match(/^\s*([A-Za-z])\s*(?:=>|->|[:：=])\s*(.+?)\s*$/);
-            if (!match) {
-                console.warn(`[${SCRIPT_NAME}] 匹配题答案片段无法识别：${segment}`);
-                return;
+    function payloadFor(q, text) {
+        if (q.type === 7) return { skip: true };
+        if ([1, 2, 5].includes(q.type)) {
+            let picked;
+            if (q.type === 5 && JUDGE_TRUE.test(text)) picked = [q.options.find(o => /^(正确|对)$/.test(o.text)) || q.options[0]];
+            else if (q.type === 5 && JUDGE_FALSE.test(text)) picked = [q.options.find(o => /^(错误|错)$/.test(o.text)) || q.options[1]];
+            else {
+                const head = (text.match(/^[A-Za-z\s,，、;；]+/) || [''])[0];
+                const letters = [...new Set(head.replace(/[^A-Za-z]/g, '').toUpperCase())];
+                if (!letters.length) return { error: '没写选项字母' };
+                const missing = letters.filter(l => !q.options.some(o => o.letter === l));
+                if (missing.length) return { error: `没有选项 ${missing.join('、')}` };
+                picked = letters.map(l => q.options.find(o => o.letter === l));
             }
-
-            const leftLetter = match[1].toUpperCase();
-            const leftItem = leftByLetter.get(leftLetter);
-            if (!leftItem) {
-                console.warn(`[${SCRIPT_NAME}] 匹配题左侧字母无效：${leftLetter}`);
-                return;
+            if (picked.some(o => !o)) return { error: '选项读取失败' };
+            if (q.type !== 2 && picked.length > 1) return { error: `${q.label}只能选一个` };
+            return { payload: picked.map(o => o.id) };
+        }
+        if (q.type === 4) {
+            const parts = q.items.length > 1 ? text.split(/[|｜]/).map(s => s.trim()) : [text.trim()];
+            if (parts.length > q.items.length) return { error: `只有 ${q.items.length} 个空，答案写了 ${parts.length} 个` };
+            const blanks = {};
+            q.items.forEach((item, i) => { if (parts[i]) blanks[item.id] = parts[i]; });
+            return Object.keys(blanks).length ? { payload: [blanks] } : { error: '没有填写内容' };
+        }
+        if (q.type === 6) return { payload: [richTextAnswer(text)] };
+        if (q.type === 13) {
+            const left = new Map(q.left.map(l => [l.letter, l]));
+            const right = new Map(q.right.map(r => [r.letter, r]));
+            const pairs = {};
+            for (const part of text.split(/[|｜;；\n]+/).map(s => s.trim()).filter(Boolean)) {
+                const m = part.match(/^([A-Za-z])\s*(?:=>|->|[:：=])\s*(.+)$/);
+                if (!m) return { error: `看不懂「${part}」，应写成 A:a,b` };
+                const l = left.get(m[1].toUpperCase());
+                if (!l) return { error: `左侧没有 ${m[1].toUpperCase()}` };
+                const letters = m[2].split(/[,，、\s]+/).map(s => s.replace(/[.。]/g, '').toLowerCase()).filter(Boolean);
+                const bad = letters.filter(x => !right.has(x));
+                if (bad.length) return { error: `右侧没有 ${bad.join('、')}` };
+                pairs[l.id] = letters.map(x => right.get(x).id).join(',');
             }
-
-            const rightIds = match[2]
-                .split(/[,，、\s]+/)
-                .map(token => token.trim().replace(/[.。]/g, '').toLowerCase())
-                .filter(Boolean)
-                .map(letter => {
-                    const rightItem = rightByLetter.get(letter);
-                    if (!rightItem) {
-                        console.warn(`[${SCRIPT_NAME}] 匹配题右侧字母无效：${letter}`);
-                        return null;
-                    }
-                    return rightItem.id;
-                })
-                .filter(Boolean);
-
-            if (rightIds.length > 0) {
-                payload[leftItem.id] = rightIds.join(',');
-            }
-        });
-
-        return payload;
+            return Object.keys(pairs).length ? { payload: [pairs] } : { error: '没有匹配内容' };
+        }
+        return { skip: true };
     }
 
-    async function executeFill(aiText) {
+    function checkAnswers(p, text) {
+        const answers = parseAnswers(text);
+        const jobs = [];
+        const issues = [];
+        const ok = new Set();
+        const bad = new Set();
+        answers.forEach((value, n) => {
+            const q = p.questions[n - 1];
+            if (!q) { issues.push({ n, message: '没有这道题' }); return; }
+            const r = payloadFor(q, value);
+            if (r.error) { issues.push({ n, message: r.error }); bad.add(n); }
+            else if (r.payload) { jobs.push({ q, payload: r.payload }); ok.add(n); }
+        });
+        const missing = p.questions.filter(q => q.type !== 7 && !answers.has(q.index)).map(q => q.index);
+        return { jobs, issues, ok, bad, missing };
+    }
+
+    async function fetchRecordId(p) {
+        const data = await api(`/api/jx-iresource/survey/course/task/flow/v2?node_id=${encodeURIComponent(p.nodeId)}&group_id=${encodeURIComponent(p.groupId)}`);
+        const id = data.data?.task_flow_record?.[0]?.answer_record_id || data.data?.task_flow_template?.[0]?.answer_record_id;
+        if (!id) throw new Error('没读到作答记录，刷新页面后再试');
+        return id;
+    }
+
+    async function saveAnswers(p, jobs, onProgress) {
+        const recordId = await fetchRecordId(p);
+        const failed = [];
+        for (let i = 0; i < jobs.length; i++) {
+            const { q, payload } = jobs[i];
+            try {
+                await api('/api/jx-iresource/survey/answer', {
+                    method: 'POST',
+                    body: JSON.stringify({ record_id: recordId, question_id: q.id, answer: payload, ext_answer: '', group_id: p.groupId, paper_id: p.paperId, is_try: 0 }),
+                });
+            } catch (e) {
+                failed.push({ n: q.index, message: `保存失败：${e.message}` });
+            }
+            onProgress(i + 1, jobs.length);
+        }
+        return failed;
+    }
+
+    function getCourse(groupId) {
+        if (!groupId) return '';
+        if (!(groupId in courses)) courses[groupId] = GM_getValue(`course:${groupId}`, '');
+        return courses[groupId];
+    }
+
+    function setCourse(groupId, name) {
+        const value = String(name || '').trim();
+        if (!groupId || getCourse(groupId) === value) return;
+        courses[groupId] = value;
+        GM_setValue(`course:${groupId}`, value);
+        if (paper?.groupId === groupId) view.course();
+    }
+
+    async function loadCourse(groupId) {
+        if (!groupId || getCourse(groupId)) return;
         try {
-            globalRecordId = await fetchRecordId();
-            console.log("✅ 成功获取 Record ID: ", globalRecordId);
+            const data = await api(GROUP_API + encodeURIComponent(groupId));
+            setCourse(groupId, data.data?.name);
         } catch (e) {
-            alert("初始化提交参数失败，请刷新页面重试！\n" + e.message);
-            return;
-        }
-
-        const answerBlocks = parseAIAnswerBlocks(aiText);
-        let successCount = 0;
-        let failureCount = 0;
-
-        for (let answerBlock of answerBlocks) {
-            let qIndex = answerBlock.index;
-            let qAnswerStr = answerBlock.answer.trim();
-
-            let qData = globalQuestionsData.find(q => q.index === qIndex);
-            if (!qData) continue;
-            if (qData.type === 7) continue;
-
-            let answerPayload =[];
-
-            if (qData.type === 1 || qData.type === 2 || qData.type === 5) {
-
-                let letters = qAnswerStr
-                    .split(/[,，、\s]+/)
-                    .map(s => s.trim().toUpperCase())
-                    .filter(Boolean);
-                letters.forEach(letter => {
-                    let targetIndex = letter.charCodeAt(0) - 65;
-                    if (qData.sortedItems[targetIndex]) {
-                        answerPayload.push(qData.sortedItems[targetIndex].id);
-                    }
-                });
-            }
-
-            else if (qData.type === 4) {
-                let blanks = qAnswerStr.split(/[|｜]/).map(s => s.trim());
-                let fillObject = {};
-                qData.sortedItems.forEach((item, idx) => {
-                    if (blanks[idx]) {
-                        fillObject[item.id] = blanks[idx];
-                    }
-                });
-                answerPayload = [fillObject];
-            }
-
-            else if (qData.type === 6 && qAnswerStr) {
-                answerPayload = [createRichTextAnswer(qAnswerStr, qData.id)];
-            }
-
-            else if (qData.type === 13) {
-                const matchObject = createMatchingAnswerPayload(qData, qAnswerStr);
-                if (Object.keys(matchObject).length > 0) {
-                    answerPayload = [matchObject];
-                }
-            }
-
-            if (answerPayload.length > 0) {
-                try {
-                    await submitSingleAnswer(qData.id, answerPayload);
-                    successCount++;
-                    console.log(`[${SCRIPT_NAME}] 第 ${qIndex} 题作答已保存，Payload:`, answerPayload);
-                } catch (error) {
-                    failureCount++;
-                    console.error(`[${SCRIPT_NAME}] 第 ${qIndex} 题保存失败`, error);
-                }
-            }
-        }
-
-        if (successCount > 0) {
-            alert(`${SCRIPT_NAME} 已完成：成功保存 ${successCount} 道题，失败 ${failureCount} 道。点击确定后刷新页面查看结果。`);
-            window.location.reload();
-        } else {
-            alert(`${SCRIPT_NAME} 未保存任何答案，请检查 AI 输出格式或控制台错误。`);
+            console.warn(`[${NAME}] 课程名读取失败`, e);
         }
     }
 
-    function setUIStatus(message, isError = false) {
-        const status = document.getElementById('xy-status');
-        if (status) {
-            status.innerText = message;
-            status.style.color = isError ? '#dc2626' : '#6b7280';
-        }
-        const floatingStatus = document.getElementById('xy-floating-status');
-        if (floatingStatus) {
-            floatingStatus.innerText = globalQuestionsData.length > 0 ? `${globalQuestionsData.length} 道题已同步` : '等待同步题目';
-        }
-    }
-
-    function safeLocalStorageGet(key) {
+    function onCaptured(url, json) {
         try {
-            return localStorage.getItem(key);
-        } catch (error) {
-            console.warn(`[${SCRIPT_NAME}] localStorage 读取失败：${key}`, error);
-            return null;
-        }
-    }
-
-    function safeLocalStorageSet(key, value) {
-        try {
-            localStorage.setItem(key, value);
-            return true;
-        } catch (error) {
-            console.warn(`[${SCRIPT_NAME}] localStorage 写入失败：${key}`, error);
-            return false;
-        }
-    }
-
-    function readHomeworkExportOptions() {
-        const fallback = { headerMode: 'course_homework', includeAnswers: false, answerPosition: 'inline' };
-        const raw = safeLocalStorageGet(HOMEWORK_EXPORT_OPTIONS_KEY);
-        if (!raw) return fallback;
-        try {
-            const parsed = JSON.parse(raw);
-            return {
-                headerMode: ['course_homework', 'course', 'homework', 'none'].includes(parsed?.headerMode) ? parsed.headerMode : fallback.headerMode,
-                includeAnswers: parsed?.includeAnswers === true,
-                answerPosition: ['inline', 'appendix'].includes(parsed?.answerPosition) ? parsed.answerPosition : fallback.answerPosition
-            };
-        } catch (error) {
-            console.warn(`[${SCRIPT_NAME}] 作业导出设置解析失败`, error);
-            return fallback;
-        }
-    }
-
-    function saveHomeworkExportOptions() {
-        safeLocalStorageSet(HOMEWORK_EXPORT_OPTIONS_KEY, JSON.stringify(homeworkExportOptions));
-    }
-
-    function getCourseNameCacheKey(groupId = globalGroupId) {
-        return groupId ? `${COURSE_NAME_CACHE_PREFIX}${groupId}` : '';
-    }
-
-    function getCachedCourseName(groupId = globalGroupId) {
-        const key = getCourseNameCacheKey(groupId);
-        return key ? (safeLocalStorageGet(key) || '').trim() : '';
-    }
-
-    function cacheCourseName(courseName, groupId = globalGroupId) {
-        const key = getCourseNameCacheKey(groupId);
-        const value = String(courseName || '').trim();
-        if (key && value) safeLocalStorageSet(key, value);
-    }
-
-    function getCurrentCourseName() {
-        return String(globalCourseMeta.courseName || getCachedCourseName() || '').trim();
-    }
-
-    function applyCourseInfo(record, source = 'unknown') {
-        const courseName = String(record?.name || record?.course_name || record?.courseName || record?.group_name || record?.groupName || '').trim();
-        const groupId = String(record?.id || record?.group_id || globalGroupId || '').trim();
-        if (groupId) globalGroupId = globalGroupId || groupId;
-        if (!courseName) return;
-        globalCourseMeta = {
-            ...globalCourseMeta,
-            groupId: groupId || globalGroupId,
-            courseName,
-            loading: false,
-            error: ''
-        };
-        cacheCourseName(courseName, groupId || globalGroupId);
-        globalExtractedText = buildAiPromptText();
-        updateHomeworkDrawerUI();
-        updateUIPanelData();
-        console.log(`[${SCRIPT_NAME}] 已更新课程信息：${courseName} (${source})`);
-    }
-
-    async function fetchCourseInfoForCurrentGroup() {
-        if (!globalGroupId) return;
-        const cached = getCachedCourseName();
-        if (cached && !globalCourseMeta.courseName) {
-            globalCourseMeta = { ...globalCourseMeta, groupId: globalGroupId, courseName: cached, error: '' };
-        }
-        if (globalCourseMeta.loading || (globalCourseMeta.groupId === globalGroupId && globalCourseMeta.courseName && !globalCourseMeta.error)) {
-            updateHomeworkDrawerUI();
-            return;
-        }
-        if (!globalToken) globalToken = getToken();
-        globalCourseMeta = { ...globalCourseMeta, groupId: globalGroupId, loading: true, error: '' };
-        updateHomeworkDrawerUI();
-        try {
-            const response = await originalFetch.call(window, `${window.location.origin}/api/jx-iresource/group/queryGroup/${encodeURIComponent(globalGroupId)}`, {
-                headers: {
-                    'authorization': globalToken ? `Bearer ${globalToken}` : '',
-                    'content-type': 'application/json'
-                },
-                credentials: 'include'
-            });
-            if (!response.ok) throw new Error(`课程信息请求失败：${response.status}`);
-            const data = await response.json();
-            if (!data?.success || !data.data) throw new Error(data?.message || '课程信息为空');
-            applyCourseInfo(data.data, 'fetch');
-        } catch (error) {
-            globalCourseMeta = { ...globalCourseMeta, loading: false, error: error?.message || String(error) };
-            updateHomeworkDrawerUI();
-            console.warn(`[${SCRIPT_NAME}] 课程信息读取失败`, error);
-        }
-    }
-
-    function isNewerVersion(latest, current) {
-        if (!latest) return false;
-        const latestParts = String(latest).split('.').map(part => Number(part) || 0);
-        const currentParts = String(current).split('.').map(part => Number(part) || 0);
-        const length = Math.max(latestParts.length, currentParts.length);
-        for (let index = 0; index < length; index++) {
-            const latestPart = latestParts[index] || 0;
-            const currentPart = currentParts[index] || 0;
-            if (latestPart > currentPart) return true;
-            if (latestPart < currentPart) return false;
-        }
-        return false;
-    }
-
-    function getNoticeFingerprint(record = noticeState) {
-        return [record.version || '', record.updatedAt || '', record.content || ''].join('|');
-    }
-
-    function readNoticeCache() {
-        const cached = safeLocalStorageGet(NOTICE_CACHE_KEY);
-        if (!cached) return null;
-        try {
-            const parsed = JSON.parse(cached);
-            if (!parsed || typeof parsed !== 'object') return null;
-            return {
-                content: String(parsed.content || '暂无公告'),
-                version: String(parsed.version || ''),
-                updatedAt: String(parsed.updatedAt || ''),
-                fetchedAt: Number(parsed.fetchedAt) || 0
-            };
-        } catch (error) {
-            console.warn(`[${SCRIPT_NAME}] 公告缓存解析失败`, error);
-            return null;
-        }
-    }
-
-    function applyNoticeRecord(record, options = {}) {
-        const normalized = {
-            content: String(record?.content || '暂无公告'),
-            version: String(record?.version || ''),
-            updatedAt: String(record?.updatedAt || ''),
-            fetchedAt: Number(record?.fetchedAt) || Date.now()
-        };
-        const readFingerprint = safeLocalStorageGet(NOTICE_READ_KEY) || '';
-        noticeState = {
-            ...noticeState,
-            ...normalized,
-            loading: false,
-            error: options.error || '',
-            hasUnread: options.preventUnread
-                ? false
-                : normalized.content !== '暂无公告'
-                    && !!getNoticeFingerprint(normalized)
-                    && getNoticeFingerprint(normalized) !== readFingerprint
-        };
-        updateNoticeUI();
-    }
-
-    function updateNoticeUI() {
-        const dot = document.querySelector('.xy-floating-dot');
-        if (dot) dot.classList.toggle('xy-notice-unread', noticeState.hasUnread);
-
-        const body = document.getElementById('xy-notice-body');
-        if (body) body.textContent = noticeState.content || '暂无公告';
-
-        const meta = document.getElementById('xy-notice-meta');
-        if (meta) {
-            const timeText = noticeState.updatedAt
-                ? new Date(noticeState.updatedAt).toLocaleString()
-                : '暂无更新时间';
-            meta.textContent = noticeState.error ? `${noticeState.error} · ${timeText}` : timeText;
-        }
-
-        const versionBadge = document.getElementById('xy-notice-version-badge');
-        if (versionBadge) {
-            const showVersion = isNewerVersion(noticeState.version, SCRIPT_VERSION);
-            versionBadge.style.display = showVersion ? 'inline-flex' : 'none';
-            versionBadge.textContent = showVersion ? `v${noticeState.version} 可用` : '';
-        }
-
-        const toggle = document.getElementById('xy-notice-toggle');
-        if (toggle) {
-            const needsToggle = (noticeState.content || '').length > 70 || (noticeState.content || '').includes('\n');
-            toggle.style.display = needsToggle ? 'inline-flex' : 'none';
-        }
-
-        const refresh = document.getElementById('xy-notice-refresh');
-        if (refresh) {
-            refresh.disabled = noticeState.loading;
-            refresh.title = noticeState.loading ? '公告刷新中...' : '刷新公告';
-            refresh.innerHTML = renderIconSvg('refresh', 12);
-        }
-    }
-
-    function fetchNoticeWithGM() {
-        return new Promise((resolve, reject) => {
-            if (typeof GM_xmlhttpRequest !== 'function') {
-                reject(new Error('GM_xmlhttpRequest 不可用'));
-                return;
+            if (url.includes(PAPER_API)) onPaper(url, json);
+            else {
+                const groupId = decodeURIComponent(new URL(url, location.origin).pathname.split(GROUP_API)[1] || '').split('/')[0];
+                if (json?.data?.name) setCourse(groupId, json.data.name);
             }
-            GM_xmlhttpRequest({
-                method: 'POST',
-                url: NOTICE_API,
-                data: JSON.stringify({ action: 'get_notice', channel: NOTICE_CHANNEL, client: `xiaoya-zhanzhanzhan-v${SCRIPT_VERSION}` }),
-                headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-                timeout: 10000,
-                onload: response => {
-                    if (response.status < 200 || response.status >= 300) {
-                        reject(new Error(`公告请求失败：${response.status}`));
-                        return;
-                    }
-                    try {
-                        resolve(JSON.parse(response.responseText));
-                    } catch (error) {
-                        reject(new Error('公告响应解析失败'));
-                    }
-                },
-                onerror: () => reject(new Error('公告网络请求失败')),
-                ontimeout: () => reject(new Error('公告网络请求超时'))
-            });
+        } catch (e) {
+            console.error(`[${NAME}] 接口数据处理失败`, e);
+        }
+    }
+
+    function onPaper(url, json) {
+        const data = json?.data;
+        if (!data || !Array.isArray(data.questions)) return;
+        const params = new URL(url, location.origin).searchParams;
+        const p = buildPaper(data, {
+            groupId: params.get('group_id') || String(data.group_id || ''),
+            nodeId: params.get('node_id') || '',
+            paperId: params.get('paper_id') || String(data.paper_id || data.id || ''),
         });
+        setPaper(p);
+        loadCourse(p.groupId);
+        console.log(`[${NAME}] 已读取 ${p.questions.length} 道题`);
     }
 
-    async function fetchNoticeRecord() {
-        try {
-            const response = await fetch(NOTICE_API, {
-                method: 'POST',
-                body: JSON.stringify({ action: 'get_notice', channel: NOTICE_CHANNEL, client: `xiaoya-zhanzhanzhan-v${SCRIPT_VERSION}` })
-            });
-            if (!response.ok) throw new Error(`公告请求失败：${response.status}`);
-            return await response.json();
-        } catch (error) {
-            console.warn(`[${SCRIPT_NAME}] 页面 fetch 获取公告失败，尝试 GM_xmlhttpRequest`, error);
-            return fetchNoticeWithGM();
-        }
+    function setPaper(p) {
+        paper = p;
+        view.paper();
     }
 
-    async function runNoticeCheck(forceRefresh = false) {
-        const cached = readNoticeCache();
-        if (cached) applyNoticeRecord(cached);
-        if (!forceRefresh && cached && Date.now() - cached.fetchedAt < NOTICE_CACHE_TTL) return;
-
-        noticeState.loading = true;
-        updateNoticeUI();
-        try {
-            const data = await fetchNoticeRecord();
-            if (!data || data.ok !== true) throw new Error('公告返回数据异常');
-            if (Number(data.apiVersion) < 2 || data.channel !== NOTICE_CHANNEL) {
-                throw new Error('公告服务尚未完成多频道升级');
+    function hookRequests() {
+        const urls = new WeakMap();
+        const proto = page.XMLHttpRequest.prototype;
+        const rawOpen = proto.open;
+        const rawSend = proto.send;
+        const readXhr = async xhr => {
+            if (xhr.responseType === 'json') return xhr.response;
+            if (xhr.responseType === 'blob') return JSON.parse(await xhr.response.text());
+            if (xhr.responseType === 'arraybuffer') return JSON.parse(new TextDecoder().decode(xhr.response));
+            return JSON.parse(xhr.responseText);
+        };
+        proto.open = function (method, url) {
+            urls.set(this, String(url));
+            return rawOpen.apply(this, arguments);
+        };
+        proto.send = function () {
+            const url = urls.get(this);
+            if (url && WATCHED_API.test(url)) {
+                this.addEventListener('load', () => readXhr(this).then(json => onCaptured(url, json), e => console.warn(`[${NAME}] 解析接口数据失败`, e)));
             }
-            const record = {
-                content: String(data.content || '暂无公告'),
-                version: String(data.version || ''),
-                updatedAt: String(data.updatedAt || ''),
-                fetchedAt: Date.now()
+            return rawSend.apply(this, arguments);
+        };
+        page.fetch = function (input) {
+            const promise = rawFetch.apply(this, arguments);
+            const url = typeof input === 'string' ? input : (input?.url || String(input));
+            if (WATCHED_API.test(url)) promise.then(res => res.clone().json()).then(json => onCaptured(url, json), () => {});
+            return promise;
+        };
+    }
+
+    function watchRoute() {
+        const check = () => setTimeout(() => {
+            if (paper && ![paper.groupId, paper.nodeId].filter(Boolean).every(id => location.href.includes(id))) setPaper(null);
+        }, 80);
+        ['pushState', 'replaceState'].forEach(name => {
+            const raw = page.history[name];
+            page.history[name] = function () {
+                const result = raw.apply(this, arguments);
+                check();
+                return result;
             };
-            safeLocalStorageSet(NOTICE_CACHE_KEY, JSON.stringify(record));
-            applyNoticeRecord(record);
-        } catch (error) {
-            console.warn(`[${SCRIPT_NAME}] 公告加载失败`, error);
-            if (cached) {
-                applyNoticeRecord(cached, { error: '公告刷新失败，正在显示缓存' });
-            } else {
-                applyNoticeRecord({
-                    content: '公告加载失败',
-                    version: '',
-                    updatedAt: '',
-                    fetchedAt: Date.now()
-                }, { error: '公告加载失败', preventUnread: true });
-            }
-        }
-    }
-
-    function markNoticeAsRead() {
-        if (!noticeState.hasUnread) return;
-        safeLocalStorageSet(NOTICE_READ_KEY, getNoticeFingerprint());
-        noticeState.hasUnread = false;
-        updateNoticeUI();
-    }
-
-    function toggleNoticeBody() {
-        const body = document.getElementById('xy-notice-body');
-        const toggle = document.getElementById('xy-notice-toggle');
-        if (!body || !toggle) return;
-        const expanded = body.classList.toggle('xy-notice-expanded');
-        toggle.textContent = expanded ? '收起' : '展开';
-    }
-
-    function initializeNoticeSystem() {
-        const cached = readNoticeCache();
-        if (cached) applyNoticeRecord(cached);
-        runNoticeCheck(false);
-    }
-
-    function getImageAssetLabel(asset) {
-        if (asset.source === 'option' && asset.optionLetter) {
-            return `第 ${asset.questionIndex} 题选项 ${asset.optionLetter} 图片`;
-        }
-        return `第 ${asset.questionIndex} 题题干图片`;
-    }
-
-    async function fetchImageBlobWithPageFetch(src) {
-        const response = await fetch(src, { credentials: 'include', redirect: 'follow' });
-        if (!response.ok) throw new Error(`图片请求失败：${response.status}`);
-        return response.blob();
-    }
-
-    function fetchImageBlobWithGM(src) {
-        return new Promise((resolve, reject) => {
-            if (typeof GM_xmlhttpRequest !== 'function') {
-                reject(new Error('GM_xmlhttpRequest 不可用'));
-                return;
-            }
-            GM_xmlhttpRequest({
-                method: 'GET',
-                url: src,
-                responseType: 'blob',
-                withCredentials: true,
-                timeout: 15000,
-                onload: response => {
-                    if (response.status >= 200 && response.status < 300 && response.response) {
-                        resolve(response.response);
-                    } else {
-                        reject(new Error(`GM 图片请求失败：${response.status}`));
-                    }
-                },
-                onerror: () => reject(new Error('GM 图片请求失败')),
-                ontimeout: () => reject(new Error('GM 图片请求超时'))
-            });
         });
-    }
-
-    async function getImageBlob(src) {
-        try {
-            return await fetchImageBlobWithPageFetch(src);
-        } catch (fetchError) {
-            console.warn(`[${SCRIPT_NAME}] 页面 fetch 获取图片失败，尝试 GM_xmlhttpRequest`, fetchError);
-            return fetchImageBlobWithGM(src);
-        }
-    }
-
-    async function mapLimit(list, limit, worker) {
-        const results = new Array(list.length);
-        let cursor = 0;
-        const runners = Array.from({ length: Math.min(limit, list.length) }, async () => {
-            while (cursor < list.length) {
-                const currentIndex = cursor++;
-                results[currentIndex] = await worker(list[currentIndex], currentIndex);
-            }
-        });
-        await Promise.all(runners);
-        return results;
+        page.addEventListener('popstate', check);
     }
 
     function blobToDataUrl(blob) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result || ''));
-            reader.onerror = () => reject(new Error('图片编码失败'));
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(reader.error);
             reader.readAsDataURL(blob);
         });
     }
 
-    async function hydratePdfImages(assets) {
-        const uniqueSrcs = Array.from(new Set((assets || []).map(asset => asset.src).filter(Boolean)));
-        if (uniqueSrcs.length === 0) return new Map();
+    async function fetchImage(src) {
+        return (await gmRequest({ method: 'GET', url: src, responseType: 'blob', withCredentials: true })).response;
+    }
 
-        const results = await mapLimit(uniqueSrcs, 3, async src => {
+    async function inlineImages(p) {
+        const map = new Map();
+        await Promise.all([...new Set(p.images.map(img => img.src))].map(async src => {
             try {
-                const blob = await getImageBlob(src);
-                const dataUrl = await blobToDataUrl(blob);
-                return { src, ok: true, dataUrl };
-            } catch (error) {
-                console.warn(`[${SCRIPT_NAME}] PDF 图片读取失败`, error);
-                return { src, ok: false, error: error?.message || String(error) };
+                map.set(src, await blobToDataUrl(await fetchImage(src)));
+            } catch (e) {
+                map.set(src, '');
+                console.warn(`[${NAME}] 图片读取失败`, src, e);
             }
-        });
-
-        const imageMap = new Map();
-        results.forEach(result => imageMap.set(result.src, result));
-        return imageMap;
+        }));
+        return map;
     }
 
-    function getPdfFileName() {
-        const now = new Date();
-        const pad = value => String(value).padStart(2, '0');
-        const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-        return `${SCRIPT_NAME}_AI图文题目_${stamp}.pdf`;
+    let markdownIt;
+    function markdown(source, block) {
+        markdownIt ??= typeof globalThis.markdownit === 'function'
+            ? globalThis.markdownit({ html: false, linkify: false, typographer: false, breaks: true })
+            : null;
+        if (!markdownIt) return esc(source).replace(/\n/g, '<br>');
+        const isBlock = block || /\n\s*\n|(^|\n)\s{0,3}(#{1,6}\s+|>\s+|[-*+]\s+|\d+\.\s+|```|~~~)|(^|\n)\s*\|.+\|\s*(\n|$)/.test(source);
+        return isBlock ? markdownIt.render(source) : markdownIt.renderInline(source).replace(/\n/g, '<br>');
     }
 
-    function getTimestamp() {
-        const now = new Date();
-        const pad = value => String(value).padStart(2, '0');
-        return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-    }
-
-    function sanitizeFileNamePart(value) {
-        return String(value || '课程作业').replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80) || '课程作业';
-    }
-
-    function getHomeworkBaseName() {
-        return sanitizeFileNamePart(globalPaperMeta.title || '课程作业') + `_${getTimestamp()}`;
-    }
-
-    function downloadBlobFile(fileName, content, mimeType) {
-        const blob = new Blob([content], { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = fileName;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        setTimeout(() => {
-            URL.revokeObjectURL(url);
-            link.remove();
-        }, 1000);
-    }
-
-    let markdownRenderer = null;
-
-    function getMarkdownRenderer() {
-        if (markdownRenderer !== null) return markdownRenderer || null;
-        const factory = globalThis.markdownit || globalThis.markdownIt || globalThis.MarkdownIt;
-        if (typeof factory !== 'function') {
-            markdownRenderer = false;
-            return null;
-        }
-        markdownRenderer = factory({
-            html: false,
-            linkify: false,
-            typographer: false,
-            breaks: true
-        });
-        return markdownRenderer;
-    }
-
-    function hasBlockMarkdown(value) {
+    function splitDollarMath(value) {
         const text = String(value || '');
-        return /\n\s*\n/.test(text) ||
-            /(^|\n)\s{0,3}(#{1,6}\s+|>\s+|[-*+]\s+|\d+\.\s+|```|~~~)/.test(text) ||
-            /(^|\n)\s*\|.+\|\s*(\n|$)/.test(text);
-    }
-
-    function renderMarkdownSource(source, blockMode = false) {
-        const text = String(source || '');
-        if (!text) return '';
-        const renderer = getMarkdownRenderer();
-        if (renderer) {
-            const html = (blockMode || hasBlockMarkdown(text))
-                ? renderer.render(text)
-                : renderer.renderInline(text).replace(/\n/g, '<br>');
-            return html.trim();
-        }
-        return escapeHTML(text).replace(/\n/g, '<br>');
-    }
-
-    function isEscapedDelimiter(text, index) {
-        let slashCount = 0;
-        for (let i = index - 1; i >= 0 && text[i] === '\\'; i--) slashCount++;
-        return slashCount % 2 === 1;
-    }
-
-    function findUnescapedDelimiter(text, delimiter, startIndex) {
-        let index = startIndex;
-        while (index < text.length) {
-            const found = text.indexOf(delimiter, index);
-            if (found < 0) return -1;
-            if (!isEscapedDelimiter(text, found)) return found;
-            index = found + delimiter.length;
-        }
-        return -1;
-    }
-
-    function splitDollarMathText(value) {
-        const text = String(value || '');
-        if (!text.includes('$')) return text ? [{ type: 'text', value: text }] : [];
-
         const parts = [];
         let cursor = 0;
-        let searchIndex = 0;
-        while (searchIndex < text.length) {
-            const openIndex = text.indexOf('$', searchIndex);
-            if (openIndex < 0) break;
-            if (isEscapedDelimiter(text, openIndex)) {
-                searchIndex = openIndex + 1;
-                continue;
+        let i = 0;
+        const escaped = at => { let n = 0; for (let j = at - 1; j >= 0 && text[j] === '\\'; j--) n++; return n % 2 === 1; };
+        const find = (delim, from) => { for (let at = text.indexOf(delim, from); at >= 0; at = text.indexOf(delim, at + delim.length)) if (!escaped(at)) return at; return -1; };
+        while ((i = text.indexOf('$', i)) >= 0) {
+            if (escaped(i)) { i++; continue; }
+            const delim = text[i + 1] === '$' ? '$$' : '$';
+            const close = find(delim, i + delim.length);
+            if (close < 0) break;
+            const tex = text.slice(i + delim.length, close).trim();
+            if (tex) {
+                if (i > cursor) parts.push({ type: 'text', value: text.slice(cursor, i) });
+                parts.push({ type: 'math', value: tex, display: delim === '$$' });
+                cursor = close + delim.length;
             }
-
-            const display = text[openIndex + 1] === '$';
-            const delimiter = display ? '$$' : '$';
-            const formulaStart = openIndex + delimiter.length;
-            const closeIndex = findUnescapedDelimiter(text, delimiter, formulaStart);
-            if (closeIndex < 0) break;
-
-            const formula = text.slice(formulaStart, closeIndex).trim();
-            if (!formula) {
-                searchIndex = closeIndex + delimiter.length;
-                continue;
-            }
-
-            if (openIndex > cursor) parts.push({ type: 'text', value: text.slice(cursor, openIndex) });
-            parts.push({ type: 'math', value: formula, display });
-            cursor = closeIndex + delimiter.length;
-            searchIndex = cursor;
+            i = close + delim.length;
         }
-
         if (cursor < text.length) parts.push({ type: 'text', value: text.slice(cursor) });
         return parts;
     }
 
-    function getMathAssetKey(tex, display = false) {
-        return `${display ? 'display' : 'inline'}:${String(tex || '').trim()}`;
+    function mathHtml(tex, display, ctx) {
+        return ctx.renderMath
+            ? `<span class="tex" data-d="${display ? 1 : 0}">${esc(tex)}</span>`
+            : `<span class="tex-src">${esc(display ? `$$${tex}$$` : `$${tex}$`)}</span>`;
     }
 
-    function getMathSegmentText(segment) {
-        const tex = String(segment?.value || '').trim();
-        if (!tex) return '';
-        return segment.display ? `$$${tex}$$` : `$${tex}$`;
-    }
-
-    function segmentsToPlainText(segments) {
-        const parts = [];
-        (segments || []).forEach(segment => {
-            if (!segment) return;
-            if (segment.type === 'blockBreak') {
-                parts.push('\n');
-            } else if (segment.type === 'image') {
-                parts.push('[图片]');
-            } else if (segment.type === 'math' || segment.type === 'formula') {
-                parts.push(getMathSegmentText(segment));
-            } else {
-                parts.push(String(segment.value || ''));
-            }
-        });
-        return parts.join('')
-            .replace(/[ \t]+\n/g, '\n')
-            .replace(/\n{3,}/g, '\n\n')
-            .trim();
-    }
-
-    function addMathEntry(mathEntries, tex, display = false) {
-        const cleanTex = String(tex || '').trim();
-        if (!cleanTex) return;
-        const key = getMathAssetKey(cleanTex, display);
-        if (!mathEntries.has(key)) {
-            mathEntries.set(key, { key, tex: cleanTex, display: display === true });
-        }
-    }
-
-    function collectMathFromDollarText(text, mathEntries) {
-        splitDollarMathText(text).forEach(part => {
-            if (part.type === 'math') addMathEntry(mathEntries, part.value, part.display);
-        });
-    }
-
-    function collectMathFromSegments(segments, mathEntries) {
-        (segments || []).forEach(segment => {
-            if (!segment) return;
-            if (segment.type === 'math' || segment.type === 'formula') {
-                addMathEntry(mathEntries, segment.value, segment.display === true);
-            } else if (segment.type === 'text') {
-                collectMathFromDollarText(segment.value, mathEntries);
-            }
-        });
-    }
-
-    function collectDocumentMathEntries(answerMap = new Map()) {
-        const mathEntries = new Map();
-        globalQuestionSections.forEach(section => collectMathFromSegments(section.titleSegments, mathEntries));
-        globalPdfQuestions.forEach(question => {
-            collectMathFromSegments(question.titleSegments, mathEntries);
-            (question.options || []).forEach(option => collectMathFromSegments(option.segments, mathEntries));
-            (question.matchingLeftItems || []).forEach(item => collectMathFromSegments(item.segments, mathEntries));
-            (question.matchingRightItems || []).forEach(item => collectMathFromSegments(item.segments, mathEntries));
-        });
-        if (answerMap && typeof answerMap.forEach === 'function') {
-            answerMap.forEach(answer => collectMathFromDollarText(answer, mathEntries));
-        }
-        return mathEntries;
-    }
-
-    function getMathJaxInstance() {
-        return globalThis.MathJax || null;
-    }
-
-    async function ensureMathJaxReady() {
-        const mathJax = getMathJaxInstance();
-        if (!mathJax) throw new Error('MathJax 未加载');
-        if (mathJax.startup?.promise) await mathJax.startup.promise;
-        if (typeof mathJax.tex2svg !== 'function') {
-            throw new Error('MathJax tex2svg 不可用');
-        }
-        return mathJax;
-    }
-
-    async function renderMathSvgMarkup(tex, display = false) {
-        const mathJax = await ensureMathJaxReady();
-        const node = mathJax.tex2svg(String(tex || ''), { display: display === true });
-        const wrapper = document.createElement('div');
-        wrapper.appendChild(node);
-        return wrapper.innerHTML;
-    }
-
-    function cssLengthToPx(value, fallback) {
-        const text = String(value || '').trim();
-        const match = text.match(/^([\d.]+)\s*(px|pt|em|ex)?$/i);
-        if (!match) return fallback;
-        const num = Number(match[1]);
-        if (!Number.isFinite(num) || num <= 0) return fallback;
-        const unit = (match[2] || 'px').toLowerCase();
-        if (unit === 'pt') return num * 96 / 72;
-        if (unit === 'em') return num * 16;
-        if (unit === 'ex') return num * 8.5;
-        return num;
-    }
-
-    function normalizeSvgMarkupForImage(mathSvgMarkup) {
-        const wrapper = document.createElement('div');
-        wrapper.innerHTML = mathSvgMarkup || '';
-        const svg = wrapper.querySelector('svg');
-        if (!svg) return '';
-        if (!svg.getAttribute('xmlns')) svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-
-        const viewBox = String(svg.getAttribute('viewBox') || '').split(/\s+/).map(Number);
-        const viewWidth = Number.isFinite(viewBox[2]) && viewBox[2] > 0 ? viewBox[2] : 1000;
-        const viewHeight = Number.isFinite(viewBox[3]) && viewBox[3] > 0 ? viewBox[3] : 400;
-        const fallbackHeight = 28;
-        const fallbackWidth = Math.max(24, fallbackHeight * viewWidth / viewHeight);
-        const width = Math.max(12, Math.ceil(cssLengthToPx(svg.getAttribute('width'), fallbackWidth)));
-        const height = Math.max(12, Math.ceil(cssLengthToPx(svg.getAttribute('height'), fallbackHeight)));
-
-        svg.setAttribute('width', String(width));
-        svg.setAttribute('height', String(height));
-        svg.setAttribute('style', 'background: transparent;');
-        return new XMLSerializer().serializeToString(svg);
-    }
-
-    function svgMarkupToPngDataUrl(mathSvgMarkup) {
-        const svgMarkup = normalizeSvgMarkupForImage(mathSvgMarkup);
-        if (!svgMarkup) return Promise.reject(new Error('未找到公式 SVG'));
-        return new Promise((resolve, reject) => {
-            const image = new Image();
-            image.onload = () => {
-                try {
-                    const scale = 2;
-                    const width = Math.max(1, image.naturalWidth || image.width || 24);
-                    const height = Math.max(1, image.naturalHeight || image.height || 24);
-                    const canvas = document.createElement('canvas');
-                    canvas.width = Math.ceil(width * scale);
-                    canvas.height = Math.ceil(height * scale);
-                    const context = canvas.getContext('2d');
-                    context.scale(scale, scale);
-                    context.drawImage(image, 0, 0, width, height);
-                    resolve(canvas.toDataURL('image/png'));
-                } catch (error) {
-                    reject(error);
-                }
-            };
-            image.onerror = () => reject(new Error('公式 SVG 转图片失败'));
-            image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgMarkup)}`;
-        });
-    }
-
-    async function hydrateDocumentMathAssets(options = {}) {
-        const mathEntries = collectDocumentMathEntries(options.answerMap || new Map());
-        if (mathEntries.size === 0) return new Map();
-
-        try {
-            await ensureMathJaxReady();
-        } catch (error) {
-            console.warn(`[${SCRIPT_NAME}] MathJax 不可用，公式将以 TeX 文本显示`, error);
-            return new Map();
-        }
-
-        const entries = Array.from(mathEntries.values());
-        const results = await mapLimit(entries, 4, async entry => {
-            try {
-                const svg = await renderMathSvgMarkup(entry.tex, entry.display);
-                const result = { ...entry, ok: true, svg };
-                if (options.docMode === true) {
-                    try {
-                        result.pngDataUrl = await svgMarkupToPngDataUrl(svg);
-                    } catch (pngError) {
-                        console.warn(`[${SCRIPT_NAME}] 公式转图片失败，将使用 SVG 或 TeX 回退`, pngError);
-                    }
-                }
-                return result;
-            } catch (error) {
-                console.warn(`[${SCRIPT_NAME}] 公式渲染失败`, entry.tex, error);
-                return { ...entry, ok: false, error: error?.message || String(error) };
-            }
-        });
-
-        const mathMap = new Map();
-        results.forEach(result => mathMap.set(result.key, result));
-        return mathMap;
-    }
-
-    function renderMathSegment(segment, options = {}) {
-        const tex = String(segment?.value || '').trim();
-        if (!tex) return '';
-        const display = segment?.display === true;
-        const key = getMathAssetKey(tex, display);
-        const mathMap = options.mathMap instanceof Map ? options.mathMap : new Map();
-        const record = mathMap.get(key);
-        const sourceText = display ? `$$${tex}$$` : `$${tex}$`;
-        const escapedTex = escapeHTML(tex);
-
-        if (options.docMode === true && record?.pngDataUrl) {
-            return `<img class="xy-math-img ${display ? 'xy-math-display-img' : ''}" src="${escapeHTML(record.pngDataUrl)}" alt="${escapedTex}" data-tex="${escapedTex}">`;
-        }
-        if (record?.svg) {
-            return `<span class="xy-math-rendered ${display ? 'xy-math-display' : ''}" data-tex="${escapedTex}" aria-label="${escapedTex}">${record.svg}</span><span class="xy-math-source">${escapeHTML(sourceText)}</span>`;
-        }
-        return `<span class="xy-math-fallback">${escapeHTML(sourceText)}</span>`;
-    }
-
-    function renderMarkdownSegments(segments, options = {}) {
-        const mathTokens = [];
+    function inlineHtml(segments, ctx, block) {
+        const tokens = [];
         let source = '';
-
-        (segments || []).forEach(segment => {
-            if (!segment) return;
-            if (segment.type === 'math' || segment.type === 'formula') {
-                const token = `XYMATHPLACEHOLDER${mathTokens.length}XY`;
-                mathTokens.push({ token, html: renderMathSegment(segment, options) });
-                source += token;
-            } else if (segment.type === 'text') {
-                splitDollarMathText(segment.value).forEach(part => {
-                    if (part.type === 'math') {
-                        const token = `XYMATHPLACEHOLDER${mathTokens.length}XY`;
-                        mathTokens.push({ token, html: renderMathSegment(part, options) });
-                        source += token;
-                    } else {
-                        source += part.value || '';
-                    }
-                });
-            }
+        const math = (tex, display) => { tokens.push(mathHtml(tex, display, ctx)); return `XYMATH${tokens.length - 1}XY`; };
+        segments.forEach(s => {
+            if (s.type === 'math') source += math(s.value, s.display);
+            else splitDollarMath(s.value).forEach(part => { source += part.type === 'math' ? math(part.value, part.display) : part.value; });
         });
-
-        let html = renderMarkdownSource(source, options.blockMarkdown === true);
-        mathTokens.forEach(item => {
-            html = html.split(item.token).join(item.html);
-        });
-        return html;
+        return markdown(source, block).replace(/XYMATH(\d+)XY/g, (_, i) => tokens[i]);
     }
 
-    function renderPrintImageSegment(segment, imageMap) {
-        const hydratedImages = imageMap instanceof Map ? imageMap : new Map();
-        const imageRecord = hydratedImages.get(segment.src);
-        if (!imageRecord || !imageRecord.ok || !imageRecord.dataUrl) {
-            return '<div class="xy-print-image-failed">[图片读取失败]</div>';
-        }
-        return `
-            <figure class="xy-print-image">
-                <figcaption>[图片]</figcaption>
-                <img src="${escapeHTML(imageRecord.dataUrl)}" alt="题目图片">
-            </figure>
-        `;
-    }
-
-    function renderPrintSegments(segments, imageMap, options = {}) {
-        if (!segments || segments.length === 0) {
-            return '<div class="xy-print-empty">[内容为空]</div>';
-        }
-
-        const htmlParts = [];
-        let inlineGroup = [];
-        const flushGroup = () => {
-            if (!inlineGroup.length) return;
-            const html = renderMarkdownSegments(inlineGroup, options);
-            if (html) htmlParts.push(`<div class="xy-print-rich-text">${html}</div>`);
-            inlineGroup = [];
+    function richHtml(segments, ctx, block = false) {
+        const html = [];
+        let group = [];
+        const flush = () => {
+            if (group.length) html.push(`<div class="rt">${inlineHtml(group, ctx, block)}</div>`);
+            group = [];
         };
-
-        segments.forEach(segment => {
-            if (!segment) return;
-            if (segment.type === 'blockBreak') {
-                flushGroup();
-                return;
-            }
-            if (segment.type === 'image') {
-                flushGroup();
-                htmlParts.push(renderPrintImageSegment(segment, imageMap));
-                return;
-            }
-            inlineGroup.push(segment);
+        segments.forEach(s => {
+            if (s.type === 'break') flush();
+            else if (s.type === 'image') {
+                flush();
+                const data = ctx.images.get(s.src);
+                html.push(data ? `<img class="pic" src="${esc(data)}" alt="题目图片">` : '<div class="pic-failed">[图片读取失败]</div>');
+            } else group.push(s);
         });
-        flushGroup();
-
-        return htmlParts.join('') || '<div class="xy-print-empty">[内容为空]</div>';
+        flush();
+        return html.join('');
     }
 
-    function renderTextWithDollarMath(value, options = {}) {
-        const segments = splitDollarMathText(value);
-        return renderMarkdownSegments(segments, { ...options, blockMarkdown: true });
-    }
-
-    function renderPrintQuestion(question, imageMap, answerText = '', options = {}) {
-        let detailHtml = '';
-        if (question.options && question.options.length > 0) {
-            detailHtml = `
-                <div class="xy-print-options">
-                    ${question.options.map(option => `
-                        <div class="xy-print-option">
-                            <div class="xy-print-option-letter">${escapeHTML(option.letter)}.</div>
-                            <div>${renderPrintSegments(option.segments, imageMap, options)}</div>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-        } else if (question.type === 4) {
-            detailHtml = `<div class="xy-print-note">(本题共 ${escapeHTML(question.blankCount)} 个填空)</div>`;
-        } else if (question.type === 7) {
-            detailHtml = '<div class="xy-print-note xy-print-warning">附件题无需回答。</div>';
-        } else if (question.type === 13) {
-            detailHtml = `
-                <div class="xy-print-match">
-                    <div class="xy-print-match-heading">左侧：</div>
-                    ${(question.matchingLeftItems || []).map(item => `
-                        <div class="xy-print-option">
-                            <div class="xy-print-option-letter">${escapeHTML(item.letter)}.</div>
-                            <div>${renderPrintSegments(item.segments, imageMap, options)}</div>
-                        </div>
-                    `).join('')}
-                    <div class="xy-print-match-heading">右侧候选：</div>
-                    ${(question.matchingRightItems || []).map(item => `
-                        <div class="xy-print-option">
-                            <div class="xy-print-option-letter">${escapeHTML(item.letter)}.</div>
-                            <div>${renderPrintSegments(item.segments, imageMap, options)}</div>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-        }
-        const answerHtml = answerText
-            ? `<div class="xy-print-answer"><strong>答案：</strong><div class="xy-print-answer-body">${renderTextWithDollarMath(answerText, options)}</div></div>`
+    function questionHtml(q, ctx, answer) {
+        const options = list => list.map(o => `<div class="opt"><b>${o.letter}.</b><div>${richHtml(o.content.segments, ctx)}</div></div>`).join('');
+        const body = q.options.length ? options(q.options)
+            : q.type === 4 ? `<p class="note">（本题共 ${q.items.length} 个填空）</p>`
+            : q.type === 7 ? '<p class="note">附件题，无需作答。</p>'
+            : q.type === 13 ? `<p class="sub">左侧</p>${options(q.left)}<p class="sub">右侧候选</p>${options(q.right)}`
             : '';
-
-        return `
-            <section class="xy-print-question">
-                <h3>${escapeHTML(question.index)}. ${escapeHTML(question.typeLabel)}</h3>
-                <div class="xy-print-title">${renderPrintSegments(question.titleSegments, imageMap, options)}</div>
-                ${detailHtml}
-                ${answerHtml}
-            </section>
-        `;
+        const answerHtml = answer ? `<div class="ans"><b>答案</b>${richHtml([{ type: 'text', value: answer }], ctx, true)}</div>` : '';
+        return `<section class="q"><h3>${q.index}. ${esc(q.label)}</h3><div class="stem">${richHtml(q.title.segments, ctx)}</div>${body}${answerHtml}</section>`;
     }
 
-    function getPdfQuestionMap() {
-        return new Map(globalPdfQuestions.map(question => [String(question.id), question]));
-    }
-
-    function getHomeworkAnswerMap() {
-        const answers = new Map();
-        if (!homeworkExportOptions.includeAnswers) return answers;
-        const resultById = new Map((globalSubmissionResult?.questionResults || []).map(item => [String(item.id), item]));
-        globalQuestionsData.forEach(qData => {
-            const standardAnswer = getStandardAnswerDisplay(qData, globalPaperMeta.canShowStandardAnswer === true);
-            const fallbackAnswer = resultById.get(String(qData.id))?.exportAnswer || '';
-            const answer = standardAnswer || fallbackAnswer;
-            if (answer) answers.set(String(qData.id), answer);
-        });
-        return answers;
-    }
-
-    function renderPrintSection(section, imageMap, answerMap = new Map(), options = {}) {
-        const pdfById = getPdfQuestionMap();
-        const questionsHtml = (section.questionIds || [])
-            .map(id => pdfById.get(String(id)))
-            .filter(Boolean)
-            .map(question => {
-                const answer = options.answerPosition === 'inline' ? answerMap.get(String(question.id)) || '' : '';
-                return renderPrintQuestion(question, imageMap, answer, options);
-            }).join('');
-        const sectionHeader = section.isGroup && section.titleSegments?.length
-            ? `<section class="xy-print-section"><h2>${escapeHTML(section.titleText || '题组')}</h2><div class="xy-print-section-body">${renderPrintSegments(section.titleSegments, imageMap, { ...options, blockMarkdown: true })}</div></section>`
-            : '';
-        return `${sectionHeader}${questionsHtml}`;
-    }
-
-    function renderAnswersAppendix(answerMap, options = {}) {
-        if (!answerMap || answerMap.size === 0 || homeworkExportOptions.answerPosition !== 'appendix') return '';
-        const lines = globalQuestionsData
-            .map(question => {
-                const answer = answerMap.get(String(question.id));
-                return answer ? `<div class="xy-print-answer-line"><strong>${escapeHTML(question.index)}.</strong> ${renderTextWithDollarMath(answer, options)}</div>` : '';
-            })
-            .filter(Boolean)
-            .join('');
-        return lines ? `<section class="xy-print-appendix"><h2>答案</h2>${lines}</section>` : '';
-    }
-
-    function renderDocumentSections(imageMap, answerMap = new Map(), options = {}) {
-        return globalQuestionSections.length
-            ? globalQuestionSections.map(section => renderPrintSection(section, imageMap, answerMap, options)).join('')
-            : '<div class="xy-print-empty">未读取到题目数据。</div>';
-    }
-
-    function buildDocumentHeaderHtml(mode) {
-        if (mode === 'ai') {
-            const courseName = getCurrentCourseName();
-            const courseMeta = courseName ? `<div class="xy-print-subtitle">课程：${escapeHTML(courseName)}</div>` : '';
-            return `
-    <header>
-        <h1>${escapeHTML(SCRIPT_NAME)} AI 图文题目</h1>
-        ${courseMeta}
-        <div class="xy-print-subtitle">浏览器原生打印版：题目文字可选中、可复制、可搜索。</div>
-        <div class="xy-print-save-tip">${escapeHTML(PDF_SAVE_TIP)}</div>
-        <div class="xy-print-rules">
-            请根据以下题目作答，严格按指定格式返回答案，不要输出解析、注释或额外说明。<br>
-            单选/判断：1 =&gt; A　　多选：2 =&gt; A,C　　填空：3 =&gt; const | let<br>
-            简答：21 =&gt; 完整文字答案　　匹配：10 =&gt; A:a,d | B:b,c　　附件题无需回答
-        </div>
-    </header>`;
-        }
-
-        const courseName = getCurrentCourseName();
-        const title = globalPaperMeta.title || '课程作业';
-        if (homeworkExportOptions.headerMode === 'none') return '';
-        if (homeworkExportOptions.headerMode === 'course') {
-            return courseName ? `<header><h1>课程：${escapeHTML(courseName)}</h1></header>` : '';
-        }
-        if (homeworkExportOptions.headerMode === 'homework') {
-            return `<header><h1>${escapeHTML(title)}</h1></header>`;
-        }
-        const meta = courseName ? `<div class="xy-print-subtitle">课程：${escapeHTML(courseName)}</div>` : '';
-        return `<header><h1>${escapeHTML(title)}</h1>${meta}</header>`;
-    }
-
-    function buildPrintDocumentHtml(imageMap, title, options = {}) {
-        const mode = options.mode || 'ai';
-        const answerMap = options.answerMap || (mode === 'homework' ? getHomeworkAnswerMap() : new Map());
-        const renderOptions = {
-            answerPosition: mode === 'homework' ? homeworkExportOptions.answerPosition : 'inline',
-            mathMap: options.mathMap instanceof Map ? options.mathMap : new Map(),
-            docMode: options.docMode === true
-        };
-        const questionsHtml = renderDocumentSections(imageMap, answerMap, {
-            ...renderOptions
-        });
-        const appendixHtml = mode === 'homework' ? renderAnswersAppendix(answerMap, renderOptions) : '';
-        const headerHtml = buildDocumentHeaderHtml(mode);
-        const printScript = options.autoPrint ? `
-    <script>
-        window.addEventListener('load', function() {
-            var images = Array.from(document.images);
-            Promise.all(images.map(function(image) {
-                if (image.complete) return Promise.resolve();
-                return new Promise(function(resolve) {
-                    image.addEventListener('load', resolve, { once: true });
-                    image.addEventListener('error', resolve, { once: true });
-                });
-            })).then(function() {
-                setTimeout(function() {
-                    window.focus();
-                    window.print();
-                }, 250);
-            });
-        });
-    <\/script>` : '';
-        return `<!doctype html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <title>${escapeHTML(title)}</title>
-    <style>
-        @page { size: A4 portrait; margin: 16mm 15mm 16mm; }
+    const PRINT_CSS = `
+        @page { size: A4 portrait; margin: 16mm 15mm; }
         * { box-sizing: border-box; }
-        body { margin: 0; color: #111827; font: 14px/1.75 Arial, "Microsoft YaHei", sans-serif; }
-        header { margin-bottom: 18px; padding-bottom: 12px; border-bottom: 2px solid #111827; }
-        main { counter-reset: xy-question; }
-        h1 { margin: 0; color: #1f2937; font-size: 22px; line-height: 1.35; }
-        h2 { margin: 0 0 9px; color: #111827; font-size: 16px; line-height: 1.45; }
-        h3 { margin: 0 0 9px; color: #111827; font-size: 15px; line-height: 1.45; }
-        .xy-print-subtitle { margin-top: 4px; color: #6b7280; font-size: 11px; }
-        .xy-print-save-tip { margin-top: 10px; padding: 9px 11px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; font-size: 12px; font-weight: 700; line-height: 1.5; }
-        .xy-print-rules { margin-top: 13px; padding: 9px 11px; border: 1px solid #e5e7eb; background: #f9fafb; color: #4b5563; font-size: 11px; line-height: 1.65; }
-        .xy-print-section { margin: 14px 0 16px; padding: 13px 14px; border: 1px solid #dbe2ea; border-radius: 6px; background: #f8fafc; break-inside: avoid-page; page-break-inside: avoid; }
-        .xy-print-section-body { color: #374151; overflow-wrap: anywhere; }
-        .xy-print-question { margin: 0 0 14px; padding: 0 0 15px; border-bottom: 1px solid #e5e7eb; break-inside: avoid-page; page-break-inside: avoid; }
-        .xy-print-title { font-weight: 650; }
-        .xy-print-rich-text { min-height: 1px; overflow-wrap: anywhere; }
-        .xy-print-rich-text p { margin: 0 0 7px; }
-        .xy-print-rich-text p:last-child { margin-bottom: 0; }
-        .xy-print-rich-text ul, .xy-print-rich-text ol { margin: 6px 0 8px 22px; padding: 0; }
-        .xy-print-rich-text li { margin: 2px 0; }
-        .xy-print-rich-text blockquote { margin: 8px 0; padding: 6px 10px; border-left: 3px solid #94a3b8; background: #f8fafc; color: #475569; }
-        .xy-print-rich-text code { padding: 1px 3px; border-radius: 3px; background: #f3f4f6; font-family: Consolas, "Courier New", monospace; font-size: 12px; }
-        .xy-print-rich-text pre { margin: 8px 0; padding: 9px 10px; border: 1px solid #e5e7eb; border-radius: 5px; background: #f9fafb; white-space: pre-wrap; }
-        .xy-print-rich-text table { width: 100%; margin: 8px 0; border-collapse: collapse; font-size: 12px; }
-        .xy-print-rich-text th, .xy-print-rich-text td { padding: 5px 7px; border: 1px solid #d1d5db; vertical-align: top; }
-        .xy-print-options, .xy-print-match { margin-top: 8px; }
-        .xy-print-option { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 4px; margin-top: 5px; padding-left: 12px; break-inside: avoid-page; page-break-inside: avoid; }
-        .xy-print-option-letter, .xy-print-match-heading { font-weight: 700; }
-        .xy-print-match-heading { margin: 10px 0 3px 12px; color: #374151; }
-        .xy-print-note { margin-top: 6px; padding-left: 12px; color: #4b5563; }
-        .xy-print-warning { color: #b45309; }
-        .xy-print-empty { color: #9ca3af; }
-        .xy-print-image { margin: 7px 0 8px; break-inside: avoid-page; page-break-inside: avoid; }
-        .xy-print-image figcaption { margin-bottom: 4px; color: #6b7280; font-size: 11px; font-weight: 700; }
-        .xy-print-image img { display: block; max-width: 100%; max-height: 88mm; object-fit: contain; }
-        .xy-print-image-failed { margin: 7px 0; padding: 15px; border: 1px dashed #d1d5db; background: #f3f4f6; color: #6b7280; font-weight: 700; }
-        .xy-print-answer { margin-top: 9px; padding: 8px 10px; border-left: 3px solid #111827; background: #f9fafb; overflow-wrap: anywhere; }
-        .xy-print-answer strong { display: inline-block; margin-bottom: 2px; }
-        .xy-print-answer-body { margin-top: 2px; }
-        .xy-print-appendix { padding-top: 18px; break-before: page; page-break-before: always; }
-        .xy-print-answer-line { margin-top: 8px; overflow-wrap: anywhere; }
-        .xy-math-rendered { display: inline-block; max-width: 100%; vertical-align: -0.18em; }
-        .xy-math-rendered mjx-container { margin: 0 .08em; max-width: 100%; overflow-x: auto; overflow-y: hidden; }
-        .xy-math-rendered svg { max-width: 100%; height: auto; }
-        .xy-math-display { display: block; margin: 7px 0; overflow-x: auto; text-align: center; vertical-align: baseline; }
-        .xy-math-source { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: .01; color: transparent; }
-        .xy-math-fallback { font-family: Consolas, "Courier New", monospace; overflow-wrap: anywhere; }
-        .xy-math-img { display: inline-block; max-width: 100%; max-height: 1.9em; vertical-align: -0.22em; }
-        .xy-math-display-img { display: block; max-height: none; margin: 7px auto; }
-        @media print { .xy-print-save-tip { display: none; } }
-    </style>
-</head>
-<body>
-    ${headerHtml}
-    <main>${questionsHtml}</main>
-    ${appendixHtml}
-    ${printScript}
-</body>
-</html>`;
-    }
+        body { margin: 0; color: #16181d; font: 14px/1.75 "Microsoft YaHei", "PingFang SC", Arial, sans-serif; }
+        header { margin-bottom: 18px; padding-bottom: 12px; border-bottom: 2px solid #16181d; }
+        h1 { margin: 0; font-size: 22px; line-height: 1.35; }
+        h2 { margin: 0 0 8px; font-size: 16px; }
+        h3 { margin: 0 0 6px; font-size: 14px; }
+        .meta { margin: 4px 0 0; color: #5d6371; font-size: 12px; }
+        .rules { margin-top: 12px; padding: 9px 11px; border: 1px solid #e3e5ea; background: #f8f9fb; color: #444a56; font-size: 11.5px; line-height: 1.7; }
+        .tip { margin: 10px 0 0; padding: 8px 11px; background: #eef3ff; color: #2c4fb8; font-size: 12px; font-weight: 600; }
+        .group { margin: 16px 0; padding: 12px 14px; border: 1px solid #dfe3ea; border-radius: 6px; background: #f8f9fb; }
+        .q { margin: 0 0 14px; padding-bottom: 14px; border-bottom: 1px solid #e6e8ec; break-inside: avoid-page; }
+        .stem { font-weight: 600; }
+        .rt { overflow-wrap: anywhere; }
+        .rt p { margin: 0 0 6px; }
+        .rt p:last-child { margin-bottom: 0; }
+        .rt ul, .rt ol { margin: 6px 0 8px 22px; padding: 0; }
+        .rt blockquote { margin: 8px 0; padding: 6px 10px; border-left: 3px solid #a3abb9; background: #f8f9fb; color: #4b5260; }
+        .rt code { padding: 1px 3px; border-radius: 3px; background: #f1f2f4; font: 12px Consolas, monospace; }
+        .rt pre { margin: 8px 0; padding: 9px 10px; border: 1px solid #e3e5ea; background: #f8f9fb; white-space: pre-wrap; }
+        .rt table { width: 100%; margin: 8px 0; border-collapse: collapse; font-size: 12px; }
+        .rt th, .rt td { padding: 5px 7px; border: 1px solid #d3d7de; vertical-align: top; }
+        .opt { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 4px; margin-top: 4px; padding-left: 12px; break-inside: avoid-page; }
+        .sub { margin: 10px 0 2px 12px; font-weight: 700; }
+        .note { margin: 6px 0 0 12px; color: #5d6371; }
+        .pic { display: block; max-width: 100%; max-height: 88mm; margin: 6px 0; object-fit: contain; break-inside: avoid-page; }
+        .pic-failed { margin: 6px 0; padding: 12px; border: 1px dashed #c9cdd5; color: #6b7280; }
+        .ans { margin-top: 8px; padding: 7px 10px; border-left: 3px solid #16181d; background: #f8f9fb; overflow-wrap: anywhere; }
+        .ans > b { display: block; font-size: 12px; }
+        .appendix { break-before: page; }
+        .appendix .row { display: grid; grid-template-columns: 32px minmax(0, 1fr); margin-top: 6px; }
+        .tex-src { font-family: Consolas, "Courier New", monospace; overflow-wrap: anywhere; }
+        .tex:not(.ok) { font-family: Consolas, "Courier New", monospace; }
+        .tex:not(.ok)::before, .tex:not(.ok)::after { content: "$"; }
+        .tex[data-d="1"] { display: block; margin: 6px 0; text-align: center; overflow-x: auto; }
+        @media print { .tip { display: none; } }
+    `;
 
-    function writePrintWindowLoading(printWindow, title) {
-        printWindow.document.open();
-        printWindow.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>${escapeHTML(title)}</title></head><body style="margin:0;padding:32px;font:15px/1.7 Arial,'Microsoft YaHei',sans-serif;color:#374151;"><strong>正在生成导出文档...</strong><div style="margin-top:8px;color:#6b7280;">正在下载题目图片并整理文档，请稍候。</div></body></html>`);
-        printWindow.document.close();
-    }
-
-    function writePrintWindowFailure(printWindow, message) {
-        printWindow.document.open();
-        printWindow.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>PDF 导出失败</title></head><body style="margin:0;padding:32px;font:15px/1.7 Arial,'Microsoft YaHei',sans-serif;color:#991b1b;"><strong>PDF 导出失败</strong><div style="margin-top:8px;">${escapeHTML(message)}</div></body></html>`);
-        printWindow.document.close();
-    }
-
-    async function exportPaperAsPdf() {
-        if (!globalPdfQuestions.length) {
-            setUIStatus('还没有读取到题目数据，无法导出 PDF。', true);
-            return;
-        }
-
-        const fileName = getPdfFileName();
-        const printWindow = window.open('', '_blank');
-        if (!printWindow) {
-            setUIStatus('打印窗口被浏览器拦截，请允许此页面打开新窗口后重试。', true);
-            return;
-        }
-
-        writePrintWindowLoading(printWindow, fileName);
-        setUIStatus('正在下载题目图片，公式将保留 TeX 文本...');
-        try {
-            const imageMap = await hydratePdfImages(globalImageAssets);
-            setUIStatus('正在生成 AI 图文 PDF...');
-            printWindow.document.open();
-            printWindow.document.write(buildPrintDocumentHtml(imageMap, fileName, { mode: 'ai', autoPrint: true }));
-            printWindow.document.close();
-
-            const failedCount = Array.from(imageMap.values()).filter(item => !item.ok).length;
-            setUIStatus(
-                failedCount > 0
-                    ? `${PDF_SAVE_TIP}${failedCount} 张图片读取失败。`
-                    : PDF_SAVE_TIP,
-                failedCount > 0
-            );
-        } catch (error) {
-            writePrintWindowFailure(printWindow, error?.message || String(error));
-            throw error;
-        }
-    }
-
-    function buildHomeworkPlainText() {
-        const lines = [];
-        const courseName = getCurrentCourseName();
-        if (homeworkExportOptions.headerMode === 'course_homework') {
-            if (globalPaperMeta.title) lines.push(globalPaperMeta.title);
-            if (courseName) lines.push(`课程：${courseName}`);
-            if (lines.length) lines.push('');
-        } else if (homeworkExportOptions.headerMode === 'course') {
-            if (courseName) {
-                lines.push(`课程：${courseName}`);
-                lines.push('');
-            }
-        } else if (homeworkExportOptions.headerMode === 'homework') {
-            if (globalPaperMeta.title) {
-                lines.push(globalPaperMeta.title);
-                lines.push('');
-            }
-        }
-
-        const answerMap = getHomeworkAnswerMap();
-        const appendix = [];
-        globalQuestionSections.forEach(section => {
-            if (section.isGroup && section.titleText) {
-                lines.push(section.titleText);
-                lines.push('');
-            }
-            section.questions.forEach(question => {
-                lines.push(`${question.index}. ${question.typeLabel}`);
-                const title = segmentsToPlainText(question.titleSegments) || question.titleText;
-                if (title) lines.push(title);
-                if (question.type === 1 || question.type === 2 || question.type === 5) {
-                    question.options.forEach(option => lines.push(`${option.letter}. ${option.text}`));
-                } else if (question.type === 4) {
-                    lines.push(`(本题共 ${question.sortedItems.length} 个填空)`);
-                } else if (question.type === 13) {
-                    lines.push('左侧：');
-                    question.matchingLeftItems.forEach(item => lines.push(`${item.letter}. ${item.text}`));
-                    lines.push('右侧候选：');
-                    question.matchingRightItems.forEach(item => lines.push(`${item.letter}. ${item.text}`));
-                } else if (question.type === 7) {
-                    lines.push('本题为附件题。');
-                }
-                const answer = answerMap.get(String(question.id));
-                if (answer && homeworkExportOptions.answerPosition === 'inline') {
-                    lines.push(`答案：${answer}`);
-                } else if (answer && homeworkExportOptions.answerPosition === 'appendix') {
-                    appendix.push(`${question.index}. ${answer}`);
-                }
-                lines.push('');
-            });
-        });
-        if (appendix.length) {
-            lines.push('答案');
-            appendix.forEach(line => lines.push(line));
-        }
-        return lines.join('\n').trim();
-    }
-
-    async function buildHomeworkHtmlContent(options = {}) {
-        const imageMap = await hydratePdfImages(globalImageAssets);
-        const answerMap = getHomeworkAnswerMap();
-        const mathMap = options.renderMath === false
-            ? new Map()
-            : await hydrateDocumentMathAssets({
-                answerMap,
-                docMode: options.docMode === true
-            });
-        return buildPrintDocumentHtml(imageMap, globalPaperMeta.title || '课程作业', {
-            mode: 'homework',
-            autoPrint: options.autoPrint === true,
-            docMode: options.docMode === true,
-            answerMap,
-            mathMap
-        });
-    }
-
-    async function exportHomeworkAsPdf() {
-        if (!globalQuestionsData.length) {
-            setUIStatus('还没有读取到题目数据，无法导出作业。', true);
-            return;
-        }
-        const printWindow = window.open('', '_blank');
-        if (!printWindow) {
-            setUIStatus('打印窗口被浏览器拦截，请允许此页面打开新窗口后重试。', true);
-            return;
-        }
-        writePrintWindowLoading(printWindow, globalPaperMeta.title || '课程作业');
-        setUIStatus('正在生成作业 PDF，正在渲染公式...');
-        try {
-            const html = await buildHomeworkHtmlContent({ autoPrint: true });
-            printWindow.document.open();
-            printWindow.document.write(html);
-            printWindow.document.close();
-            setUIStatus(PDF_SAVE_TIP);
-        } catch (error) {
-            writePrintWindowFailure(printWindow, error?.message || String(error));
-            throw error;
-        }
-    }
-
-    async function exportHomeworkAsDoc() {
-        if (!globalQuestionsData.length) {
-            setUIStatus('还没有读取到题目数据，无法导出作业。', true);
-            return;
-        }
-        setUIStatus('正在生成作业 DOC，公式将保留 TeX 文本...');
-        const html = await buildHomeworkHtmlContent({ docMode: true, renderMath: false });
-        downloadBlobFile(`${getHomeworkBaseName()}.doc`, `\ufeff${html}`, 'application/msword;charset=utf-8');
-        setUIStatus('已导出作业 DOC。');
-    }
-
-    function copyHomeworkText() {
-        if (!globalQuestionsData.length) {
-            setUIStatus('还没有读取到题目数据，无法复制作业。', true);
-            return;
-        }
-        const text = buildHomeworkPlainText();
-        GM_setClipboard(text, 'text');
-        setUIStatus('已复制纯净作业文本。');
-    }
-
-    function convertBlobToPng(blob) {
-        if (blob.type === 'image/png') return Promise.resolve(blob);
-        return new Promise((resolve, reject) => {
-            const image = new Image();
-            const objectUrl = URL.createObjectURL(blob);
-            image.onload = () => {
-                try {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = image.naturalWidth || image.width;
-                    canvas.height = image.naturalHeight || image.height;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(image, 0, 0);
-                    canvas.toBlob(pngBlob => {
-                        URL.revokeObjectURL(objectUrl);
-                        if (pngBlob) resolve(pngBlob);
-                        else reject(new Error('图片转 PNG 失败'));
-                    }, 'image/png');
-                } catch (error) {
-                    URL.revokeObjectURL(objectUrl);
-                    reject(error);
-                }
-            };
-            image.onerror = () => {
-                URL.revokeObjectURL(objectUrl);
-                reject(new Error('图片解码失败'));
-            };
-            image.src = objectUrl;
-        });
-    }
-
-    async function copyImageAsset(asset) {
-        try {
-            if (!navigator.clipboard || typeof navigator.clipboard.write !== 'function' || typeof ClipboardItem === 'undefined') {
-                throw new Error('当前浏览器不支持图片剪贴板');
-            }
-            const blob = await getImageBlob(asset.src);
-            const pngBlob = await convertBlobToPng(blob);
-            await navigator.clipboard.write([
-                new ClipboardItem({ 'image/png': pngBlob })
-            ]);
-            setUIStatus(`${getImageAssetLabel(asset)} 已复制为图片。`);
-        } catch (error) {
-            console.warn(`[${SCRIPT_NAME}] 图片复制失败，回退复制链接`, error);
-            GM_setClipboard(asset.src, 'text');
-            setUIStatus('图片复制失败，已复制图片链接', true);
-        }
-    }
-
-    function renderImageAssets() {
-        const container = document.getElementById('xy-image-list');
-        if (!container) return;
-        container.innerHTML = '';
-        if (globalImageAssets.length === 0) {
-            const empty = document.createElement('div');
-            empty.className = 'xy-empty-state';
-            empty.textContent = '未检测到题目图片。';
-            container.appendChild(empty);
-            return;
-        }
-
-        globalImageAssets.forEach(asset => {
-            const item = document.createElement('div');
-            item.className = 'xy-image-item';
-
-            const label = document.createElement('div');
-            label.textContent = getImageAssetLabel(asset);
-            label.className = 'xy-image-label';
-
-            const img = document.createElement('img');
-            img.src = asset.src;
-            img.alt = getImageAssetLabel(asset);
-            img.className = 'xy-image-preview';
-
-            const actions = document.createElement('div');
-            actions.className = 'xy-image-actions';
-
-            const copyImageBtn = document.createElement('button');
-            copyImageBtn.className = 'xy-mini-btn xy-mini-btn-primary';
-            copyImageBtn.innerHTML = `${renderIconSvg('copy', 14)}<span>复制图片</span>`;
-            copyImageBtn.onclick = async () => {
-                copyImageBtn.disabled = true;
-                copyImageBtn.querySelector('span').textContent = '复制中...';
-                await copyImageAsset(asset);
-                copyImageBtn.disabled = false;
-                copyImageBtn.querySelector('span').textContent = '复制图片';
-            };
-
-            const copyLinkBtn = document.createElement('button');
-            copyLinkBtn.className = 'xy-mini-btn';
-            copyLinkBtn.innerHTML = `${renderIconSvg('link', 14)}<span>复制链接</span>`;
-            copyLinkBtn.onclick = () => {
-                GM_setClipboard(asset.src, 'text');
-                setUIStatus(`${getImageAssetLabel(asset)} 链接已复制。`);
-            };
-
-            actions.appendChild(copyImageBtn);
-            actions.appendChild(copyLinkBtn);
-            item.appendChild(label);
-            item.appendChild(img);
-            item.appendChild(actions);
-            container.appendChild(item);
-        });
-    }
-
-    function escapeHTML(value) {
-        return String(value ?? '').replace(/[&<>"']/g, char => ({
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#39;'
-        }[char]));
-    }
-
-    function renderXyLogoSvg(size = 30) {
-        return `
-            <svg class="xy-logo-svg" width="${size}" height="${size}" viewBox="0 0 1024 1024" aria-hidden="true" focusable="false">
-                <polygon fill="#f7f8f8" points="190,170 332,170 455,384 358,508"></polygon>
-                <polygon fill="#f7f8f8" points="714,170 854,170 428,792 286,792"></polygon>
-                <polygon fill="#62e6b5" points="508,660 812,660 812,792 416,792"></polygon>
-            </svg>
-        `;
-    }
-
-    function renderIconSvg(name, size = 16) {
-        const paths = {
-            copy: '<rect x="8" y="8" width="11" height="11" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>',
-            file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M8 13h8"></path><path d="M8 17h6"></path>',
-            save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><path d="M17 21v-8H7v8"></path><path d="M7 3v5h8"></path>',
-            refresh: '<path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 5v4h4"></path><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"></path>',
-            results: '<path d="M4 19V5"></path><path d="M10 19V9"></path><path d="M16 19v-6"></path><path d="M22 19V3"></path>',
-            chevron: '<path d="m9 18 6-6-6-6"></path>',
-            close: '<path d="M18 6 6 18"></path><path d="m6 6 12 12"></path>',
-            image: '<rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="m21 15-5-5L5 21"></path>',
-            link: '<path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"></path><path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1"></path>'
-        };
-        return `<svg class="xy-icon" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${paths[name] || paths.chevron}</svg>`;
-    }
-
-    function injectUIStyles() {
-        if (document.getElementById('xy-v18-style')) return;
-        const style = document.createElement('style');
-        style.id = 'xy-v18-style';
-        style.textContent = `
-            #xy-magic-box {
-                --xy-bg: #f7f8f8;
-                --xy-surface: rgba(250, 252, 251, .94);
-                --xy-surface-solid: #fbfcfc;
-                --xy-graphite: #111315;
-                --xy-charcoal: #1b1f21;
-                --xy-muted: #737b7a;
-                --xy-line: rgba(17, 19, 21, .10);
-                --xy-line-strong: rgba(17, 19, 21, .16);
-                --xy-mint: #62e6b5;
-                --xy-mint-deep: #187a5c;
-                --xy-danger: #e45a64;
-                --xy-warning: #c18a3b;
-                --xy-shadow: 0 26px 70px rgba(16, 24, 24, .18), 0 8px 24px rgba(16, 24, 24, .09);
-                color: var(--xy-graphite);
-                letter-spacing: 0;
-            }
-            #xy-magic-box *, #xy-magic-box *::before, #xy-magic-box *::after {
-                box-sizing: border-box;
-            }
-            #xy-floating-trigger {
-                position: relative;
-                display: flex;
-                width: 184px;
-                min-height: 54px;
-                align-items: center;
-                gap: 10px;
-                overflow: hidden;
-                padding: 7px 13px 7px 9px;
-                border: 1px solid rgba(255,255,255,.11);
-                border-radius: 18px;
-                background: linear-gradient(145deg, #111315 0%, #1b2021 100%);
-                box-shadow: 0 20px 44px rgba(9,14,15,.28), inset 0 1px 0 rgba(255,255,255,.10);
-                color: #f7f8f8;
-                cursor: move;
-                isolation: isolate;
-                user-select: none;
-                transform: scale(1);
-                transform-origin: center;
-                transition: transform .22s cubic-bezier(.16,1,.3,1), border-radius .24s cubic-bezier(.16,1,.3,1), box-shadow .24s ease, border-color .24s ease, opacity .18s ease;
-                will-change: transform;
-            }
-            #xy-floating-trigger:hover {
-                z-index: 2;
-                border-radius: 26px;
-                border-color: rgba(98,230,181,.36);
-                box-shadow: 0 24px 56px rgba(9,14,15,.34), 0 0 0 1px rgba(98,230,181,.11), inset 0 1px 0 rgba(255,255,255,.13);
-                transform: scale(1.025);
-            }
-            #xy-floating-trigger:active {
-                border-radius: 26px;
-                transform: scale(.995);
-                transition-duration: .09s;
-            }
-            #xy-magic-box[data-dragging="1"] #xy-floating-trigger {
-                border-radius: 26px;
-                border-color: rgba(98,230,181,.36);
-                box-shadow: 0 24px 56px rgba(9,14,15,.34), 0 0 0 1px rgba(98,230,181,.11), inset 0 1px 0 rgba(255,255,255,.13);
-                cursor: grabbing;
-                transform: scale(1);
-                transition: border-radius .16s ease, box-shadow .16s ease, border-color .16s ease, opacity .18s ease;
-            }
-            #xy-floating-trigger.xy-trigger-hidden {
-                display: none;
-            }
-            .xy-floating-logo {
-                display: grid;
-                width: 40px;
-                height: 40px;
-                flex: 0 0 auto;
-                place-items: center;
-            }
-            .xy-logo-svg {
-                display: block;
-                width: 40px;
-                height: 40px;
-                filter: drop-shadow(0 7px 10px rgba(0,0,0,.24));
-            }
-            .xy-floating-copy {
-                display: flex;
-                min-width: 0;
-                flex: 1;
-                flex-direction: column;
-                align-items: flex-start;
-                justify-content: center;
-                line-height: 1.15;
-            }
-            .xy-floating-title {
-                color: #f8fbfa;
-                font-size: 14px;
-                font-weight: 760;
-                white-space: nowrap;
-            }
-            .xy-floating-status-row, .xy-status-inline, .xy-header-meta, .xy-notice-inline {
-                display: flex;
-                align-items: center;
-            }
-            .xy-floating-status-row {
-                gap: 6px;
-                margin-top: 5px;
-            }
-            .xy-floating-dot, .xy-status-dot {
-                width: 6px;
-                height: 6px;
-                flex: 0 0 auto;
-                border-radius: 999px;
-                background: var(--xy-mint);
-                box-shadow: 0 0 0 3px rgba(98,230,181,.13), 0 0 15px rgba(98,230,181,.44);
-            }
-            .xy-floating-dot.xy-notice-unread {
-                background: var(--xy-danger);
-                box-shadow: 0 0 0 3px rgba(228,90,100,.14), 0 0 16px rgba(228,90,100,.52);
-            }
-            #xy-floating-status {
-                overflow: hidden;
-                color: rgba(247,248,248,.62);
-                font-size: 10.5px;
-                font-weight: 650;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-            }
-            .xy-drag-grip {
-                width: 5px;
-                height: 20px;
-                flex: 0 0 auto;
-                opacity: .34;
-                background: radial-gradient(circle, rgba(247,248,248,.8) 1px, transparent 1.2px) 0 0 / 4px 5px;
-            }
-            #xy-panel-shell {
-                position: relative;
-                display: none;
-                align-items: flex-start;
-                gap: 10px;
-                opacity: 0;
-                transition: opacity .18s ease;
-            }
-            #xy-panel-shell.xy-shell-open {
-                opacity: 1;
-            }
-            #xy-panel-shell.xy-shell-closing {
-                pointer-events: none;
-            }
-            .xy-panel-surface {
-                position: relative;
-                overflow: hidden;
-                border: 1px solid rgba(17,19,21,.10);
-                border-radius: 13px;
-                background: var(--xy-surface);
-                box-shadow: var(--xy-shadow);
-                backdrop-filter: blur(22px) saturate(1.18);
-            }
-            #xy-panel {
-                width: min(410px, calc(100vw - 16px));
-                max-height: min(82vh, 760px);
-            }
-            #xy-result-panel {
-                width: 310px;
-                max-height: min(82vh, 760px);
-                opacity: 1;
-                transition: opacity .16s ease;
-            }
-            #xy-result-panel.xy-result-fading {
-                opacity: 0;
-                pointer-events: none;
-            }
-            #xy-panel-shell.xy-narrow {
-                width: min(410px, calc(100vw - 16px)) !important;
-            }
-            #xy-panel-shell.xy-narrow #xy-result-panel {
-                position: absolute;
-                z-index: 6;
-                top: 0;
-                right: 0;
-                width: min(310px, calc(100vw - 16px));
-            }
-            .xy-main-scroll, .xy-result-scroll, .xy-image-drawer, .xy-homework-drawer {
-                scrollbar-color: rgba(17,19,21,.18) transparent;
-                scrollbar-width: thin;
-            }
-            .xy-main-scroll {
-                max-height: min(82vh, 760px);
-                overflow: auto;
-                padding: 16px;
-            }
-            .xy-result-scroll {
-                max-height: min(82vh, 760px);
-                overflow: auto;
-                padding: 15px;
-            }
-            .xy-panel-header, .xy-result-header, .xy-header-actions, .xy-action-grid,
-            .xy-image-actions, .xy-drawer-header, .xy-footer-status, .xy-result-row-top {
-                display: flex;
-                align-items: center;
-            }
-            .xy-panel-header, .xy-result-header, .xy-drawer-header {
-                justify-content: space-between;
-                gap: 10px;
-            }
-            .xy-panel-header {
-                padding-bottom: 13px;
-                border-bottom: 1px solid var(--xy-line);
-                cursor: move;
-                user-select: none;
-            }
-            .xy-brand {
-                display: flex;
-                min-width: 0;
-                align-items: center;
-                gap: 9px;
-            }
-            .xy-brand-logo {
-                display: grid;
-                width: 34px;
-                height: 34px;
-                flex: 0 0 auto;
-                place-items: center;
-                border-radius: 9px;
-                background: var(--xy-graphite);
-                box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 8px 16px rgba(17,19,21,.16);
-            }
-            .xy-brand-logo .xy-logo-svg {
-                width: 29px;
-                height: 29px;
-            }
-            .xy-title {
-                color: var(--xy-graphite);
-                font-size: 15px;
-                font-weight: 780;
-                line-height: 1.2;
-            }
-            .xy-subtitle, .xy-result-subtitle, .xy-helper, #xy-notice-meta {
-                color: var(--xy-muted);
-                font-size: 10.5px;
-                line-height: 1.45;
-            }
-            .xy-subtitle {
-                margin-top: 4px;
-            }
-            .xy-header-actions {
-                gap: 6px;
-            }
-            .xy-icon-btn {
-                display: grid;
-                width: 30px;
-                height: 30px;
-                place-items: center;
-                border: 1px solid var(--xy-line);
-                border-radius: 8px;
-                background: rgba(255,255,255,.54);
-                color: #39413f;
-                cursor: pointer;
-                transform: scale(1);
-                transition: transform .18s cubic-bezier(.2,.8,.2,1), border-radius .18s ease, border-color .2s ease, background .2s ease, color .2s ease, box-shadow .2s ease;
-                will-change: transform;
-            }
-            .xy-icon-btn:hover {
-                z-index: 2;
-                border-radius: 12px;
-                border-color: rgba(98,230,181,.62);
-                background: rgba(98,230,181,.11);
-                color: #146349;
-                box-shadow: 0 8px 16px rgba(31,91,72,.10);
-                transform: scale(1.1);
-            }
-            .xy-icon-btn:active {
-                border-radius: 10px;
-                transform: scale(.94);
-                transition-duration: .08s;
-            }
-            .xy-icon-btn:disabled {
-                opacity: .36;
-                cursor: not-allowed;
-                transform: none;
-            }
-            .xy-icon {
-                fill: none;
-                stroke: currentColor;
-                stroke-linecap: round;
-                stroke-linejoin: round;
-                stroke-width: 1.8;
-            }
-            .xy-notice-strip {
-                margin-top: 12px;
-                padding: 8px 9px;
-                border: 1px solid rgba(98,230,181,.22);
-                border-radius: 8px;
-                background: rgba(98,230,181,.055);
-            }
-            .xy-notice-inline {
-                min-width: 0;
-                gap: 7px;
-            }
-            .xy-notice-title {
-                flex: 0 0 auto;
-                color: #17694f;
-                font-size: 11px;
-                font-weight: 800;
-            }
-            #xy-notice-version-badge {
-                display: none;
-                flex: 0 0 auto;
-                padding: 1px 5px;
-                border-radius: 999px;
-                background: rgba(228,90,100,.12);
-                color: #bd3f49;
-                font-size: 9px;
-                font-weight: 800;
-            }
-            #xy-notice-body {
-                display: -webkit-box;
-                min-width: 0;
-                flex: 1;
-                overflow: hidden;
-                color: #4f5957;
-                font-size: 11px;
-                line-height: 1.55;
-                overflow-wrap: anywhere;
-                -webkit-box-orient: vertical;
-                -webkit-line-clamp: 1;
-            }
-            #xy-notice-body.xy-notice-expanded {
-                display: block;
-                margin-top: 7px;
-                max-height: 132px;
-                overflow: auto;
-                white-space: pre-wrap;
-            }
-            .xy-notice-actions {
-                display: flex;
-                flex: 0 0 auto;
-                gap: 3px;
-            }
-            .xy-notice-action {
-                display: inline-flex;
-                align-items: center;
-                border: none;
-                background: transparent;
-                color: #26765d;
-                font-size: 10px;
-                font-weight: 760;
-                cursor: pointer;
-                gap: 4px;
-                padding: 3px 4px;
-                border-radius: 5px;
-                transform: scale(1);
-                transition: transform .18s cubic-bezier(.2,.8,.2,1), border-radius .18s ease, background .18s ease, color .18s ease;
-                will-change: transform;
-            }
-            .xy-notice-action:hover {
-                border-radius: 9px;
-                background: rgba(98,230,181,.12);
-                color: #17694f;
-                transform: scale(1.055);
-            }
-            .xy-notice-action:active {
-                border-radius: 7px;
-                transform: scale(.96);
-                transition-duration: .08s;
-            }
-            .xy-notice-action:disabled {
-                opacity: .42;
-                cursor: wait;
-                transform: none;
-            }
-            #xy-notice-meta {
-                margin-top: 5px;
-            }
-            .xy-id-note {
-                margin-top: 10px;
-                color: #64706e;
-                font-size: 10.5px;
-                line-height: 1.55;
-            }
-            .xy-action-grid {
-                display: grid;
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 8px;
-                margin-top: 13px;
-            }
-            .xy-homework-entry-btn {
-                width: 100%;
-                margin-top: 9px;
-            }
-            .xy-action-btn {
-                display: inline-flex;
-                min-width: 0;
-                flex: 1;
-                align-items: center;
-                justify-content: center;
-                gap: 7px;
-                min-height: 40px;
-                padding: 0 11px;
-                border: 1px solid var(--xy-line);
-                border-radius: 8px;
-                font-size: 12px;
-                font-weight: 760;
-                cursor: pointer;
-                transform: scale(1);
-                transition: transform .18s cubic-bezier(.2,.8,.2,1), border-radius .18s ease, border-color .2s ease, background .2s ease, box-shadow .2s ease, color .2s ease;
-                will-change: transform;
-            }
-            .xy-action-btn-primary, .xy-submit-btn {
-                border-color: var(--xy-graphite);
-                background: var(--xy-graphite);
-                color: #f8fbfa;
-                box-shadow: 0 10px 20px rgba(17,19,21,.16);
-            }
-            .xy-action-btn-secondary {
-                background: rgba(255,255,255,.56);
-                color: #313938;
-            }
-            .xy-action-btn:hover, .xy-submit-btn:hover {
-                position: relative;
-                z-index: 2;
-                border-radius: 14px;
-                border-color: rgba(98,230,181,.74);
-                box-shadow: 0 12px 24px rgba(20,73,58,.14), inset 0 0 0 1px rgba(98,230,181,.18);
-                transform: scale(1.025);
-            }
-            .xy-action-btn:active, .xy-submit-btn:active, .xy-mini-btn:active, .xy-icon-btn:active {
-                filter: brightness(.96);
-            }
-            .xy-action-btn:active, .xy-submit-btn:active {
-                border-radius: 11px;
-                transform: scale(.985);
-                transition-duration: .08s;
-            }
-            .xy-action-btn:disabled, .xy-submit-btn:disabled, .xy-mini-btn:disabled {
-                opacity: .56;
-                cursor: wait;
-                transform: none;
-            }
-            .xy-pdf-helper {
-                margin: 6px 0 0 50%;
-                color: var(--xy-muted);
-                font-size: 10px;
-                line-height: 1.4;
-            }
-            .xy-editor-section {
-                margin-top: 14px;
-            }
-            .xy-editor-label-row {
-                display: flex;
-                align-items: baseline;
-                justify-content: space-between;
-                gap: 8px;
-                margin-bottom: 7px;
-            }
-            .xy-editor-label {
-                color: #323938;
-                font-size: 11.5px;
-                font-weight: 780;
-            }
-            #xy-ai-input {
-                display: block;
-                width: 100%;
-                min-height: 128px;
-                resize: vertical;
-                padding: 10px 11px;
-                border: 1px solid var(--xy-line-strong);
-                border-radius: 8px;
-                outline: none;
-                background: rgba(245,247,247,.92);
-                color: #28302f;
-                font: 12px/1.6 Consolas, Monaco, monospace;
-                transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
-            }
-            #xy-ai-input:focus {
-                border-color: rgba(98,230,181,.92);
-                background: rgba(255,255,255,.94);
-                box-shadow: 0 0 0 3px rgba(98,230,181,.13);
-            }
-            .xy-submit-btn {
-                display: flex;
-                width: 100%;
-                min-height: 42px;
-                align-items: center;
-                justify-content: center;
-                gap: 8px;
-                margin-top: 10px;
-                border-radius: 8px;
-                font-size: 12.5px;
-                font-weight: 780;
-                cursor: pointer;
-                transform: scale(1);
-                transition: transform .18s cubic-bezier(.2,.8,.2,1), border-radius .18s ease, border-color .2s ease, box-shadow .2s ease, filter .2s ease;
-                will-change: transform;
-            }
-            #xy-status {
-                min-height: 16px;
-                margin-top: 8px;
-                color: var(--xy-muted);
-                font-size: 10.5px;
-                line-height: 1.45;
-            }
-            .xy-footer-status {
-                justify-content: space-between;
-                gap: 8px;
-                margin-top: 11px;
-                padding-top: 10px;
-                border-top: 1px solid var(--xy-line);
-            }
-            .xy-status-inline {
-                min-width: 0;
-                gap: 6px;
-                color: var(--xy-muted);
-                font-size: 10px;
-                white-space: nowrap;
-            }
-            .xy-footer-dot {
-                opacity: .42;
-            }
-            .xy-image-drawer, .xy-homework-drawer {
-                position: absolute;
-                z-index: 8;
-                inset: 0;
-                overflow: auto;
-                padding: 15px;
-                border-left: 1px solid var(--xy-line);
-                background: rgba(250,252,251,.998);
-                opacity: 0;
-                pointer-events: none;
-                transform: translateX(100%);
-                transition: transform .24s cubic-bezier(.2,.72,.2,1), opacity .2s ease;
-            }
-            .xy-image-drawer.xy-drawer-open, .xy-homework-drawer.xy-drawer-open {
-                opacity: 1;
-                pointer-events: auto;
-                transform: translateX(0);
-            }
-            .xy-drawer-title, .xy-result-title {
-                color: var(--xy-graphite);
-                font-size: 14px;
-                font-weight: 800;
-            }
-            .xy-homework-form {
-                margin-top: 13px;
-            }
-            .xy-homework-field {
-                margin-top: 11px;
-            }
-            .xy-homework-label {
-                display: block;
-                margin-bottom: 6px;
-                color: #37413f;
-                font-size: 11px;
-                font-weight: 780;
-            }
-            .xy-homework-input, .xy-homework-select {
-                width: 100%;
-                min-height: 34px;
-                padding: 7px 9px;
-                border: 1px solid var(--xy-line-strong);
-                border-radius: 8px;
-                background: rgba(245,247,247,.92);
-                color: #28302f;
-                font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                outline: none;
-            }
-            .xy-homework-input:focus, .xy-homework-select:focus {
-                border-color: rgba(98,230,181,.86);
-                background: rgba(255,255,255,.95);
-                box-shadow: 0 0 0 3px rgba(98,230,181,.13);
-            }
-            .xy-homework-toggle {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                color: #37413f;
-                font-size: 11.5px;
-                font-weight: 740;
-                cursor: pointer;
-            }
-            .xy-homework-toggle input {
-                width: 15px;
-                height: 15px;
-                accent-color: var(--xy-mint-deep);
-            }
-            .xy-homework-actions {
-                display: grid;
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 8px;
-                margin-top: 14px;
-            }
-            .xy-homework-actions .xy-action-btn {
-                min-height: 36px;
-                font-size: 11.5px;
-            }
-            .xy-homework-actions .xy-action-btn:first-child {
-                grid-column: 1 / -1;
-            }
-            @media (max-width: 360px) {
-                .xy-action-grid, .xy-homework-actions {
-                    grid-template-columns: 1fr;
-                }
-            }
-            .xy-homework-meta {
-                margin-top: 9px;
-                color: var(--xy-muted);
-                font-size: 10.5px;
-                line-height: 1.5;
-            }
-            .xy-homework-export-note {
-                margin-top: 10px;
-                padding: 9px 10px;
-                border: 1px solid rgba(24, 122, 92, .18);
-                border-radius: 8px;
-                background: rgba(98, 230, 181, .08);
-                color: #356257;
-                font-size: 10.5px;
-                line-height: 1.55;
-            }
-            .xy-image-item {
-                margin-top: 10px;
-                padding-top: 10px;
-                border-top: 1px solid var(--xy-line);
-            }
-            .xy-image-label {
-                margin-bottom: 7px;
-                color: #45504e;
-                font-size: 11px;
-                font-weight: 720;
-            }
-            .xy-image-preview {
-                display: block;
-                max-width: 100%;
-                max-height: 220px;
-                margin-bottom: 8px;
-                border-radius: 7px;
-                background: #eff2f1;
-                object-fit: contain;
-            }
-            .xy-image-actions {
-                gap: 7px;
-            }
-            .xy-mini-btn {
-                display: inline-flex;
-                min-height: 30px;
-                flex: 1;
-                align-items: center;
-                justify-content: center;
-                gap: 5px;
-                border: 1px solid var(--xy-line);
-                border-radius: 7px;
-                background: rgba(255,255,255,.72);
-                color: #4a5553;
-                font-size: 10.5px;
-                font-weight: 740;
-                cursor: pointer;
-                transform: scale(1);
-                transition: transform .18s cubic-bezier(.2,.8,.2,1), border-radius .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
-                will-change: transform;
-            }
-            .xy-mini-btn:hover {
-                z-index: 2;
-                border-radius: 11px;
-                border-color: rgba(98,230,181,.46);
-                background: rgba(255,255,255,.94);
-                box-shadow: 0 8px 16px rgba(31,91,72,.10);
-                transform: scale(1.035);
-            }
-            .xy-mini-btn:active {
-                border-radius: 9px;
-                transform: scale(.96);
-                transition-duration: .08s;
-            }
-            .xy-mini-btn-primary {
-                border-color: rgba(98,230,181,.32);
-                background: rgba(98,230,181,.12);
-                color: #17694f;
-            }
-            .xy-empty-state {
-                margin-top: 10px;
-                padding: 11px;
-                border: 1px dashed var(--xy-line-strong);
-                border-radius: 8px;
-                color: var(--xy-muted);
-                font-size: 11px;
-            }
-            .xy-result-header {
-                padding-bottom: 12px;
-                border-bottom: 1px solid var(--xy-line);
-            }
-            .xy-score-block {
-                padding: 15px 0 11px;
-            }
-            .xy-score-value {
-                color: var(--xy-graphite);
-                font-size: 34px;
-                font-weight: 760;
-                line-height: 1;
-            }
-            .xy-score-total {
-                color: var(--xy-muted);
-                font-size: 13px;
-                font-weight: 650;
-            }
-            .xy-score-detail {
-                margin-top: 8px;
-                color: #66706f;
-                font-size: 11px;
-            }
-            .xy-result-tabs {
-                display: flex;
-                gap: 17px;
-                border-bottom: 1px solid var(--xy-line);
-            }
-            .xy-result-tab {
-                position: relative;
-                padding: 8px 0;
-                border: none;
-                background: transparent;
-                color: var(--xy-muted);
-                font-size: 10.5px;
-                font-weight: 740;
-                cursor: pointer;
-                border-radius: 5px;
-                transform: scale(1);
-                transition: transform .18s cubic-bezier(.2,.8,.2,1), border-radius .18s ease, background .18s ease, color .18s ease;
-                will-change: transform;
-            }
-            .xy-result-tab:hover {
-                border-radius: 9px;
-                background: rgba(98,230,181,.10);
-                color: #17694f;
-                transform: scale(1.045);
-            }
-            .xy-result-tab:active {
-                border-radius: 7px;
-                transform: scale(.97);
-                transition-duration: .08s;
-            }
-            .xy-result-tab.xy-active {
-                color: var(--xy-graphite);
-            }
-            .xy-result-tab.xy-active::after {
-                position: absolute;
-                right: 0;
-                bottom: -1px;
-                left: 0;
-                height: 2px;
-                background: var(--xy-mint);
-                content: "";
-            }
-            .xy-result-list {
-                margin-top: 4px;
-            }
-            .xy-result-section-title {
-                margin-top: 10px;
-                padding: 8px 9px;
-                border-radius: 8px;
-                background: rgba(17,19,21,.045);
-                color: #313938;
-                font-size: 11px;
-                font-weight: 780;
-                line-height: 1.5;
-                white-space: pre-wrap;
-                overflow-wrap: anywhere;
-            }
-            .xy-result-row {
-                padding: 10px 0;
-                border-bottom: 1px solid var(--xy-line);
-                animation: xyFadeIn .22s ease both;
-            }
-            .xy-result-row-top {
-                justify-content: space-between;
-                gap: 8px;
-            }
-            .xy-result-question {
-                color: #313938;
-                font-size: 11.5px;
-                font-weight: 760;
-            }
-            .xy-result-state {
-                display: inline-flex;
-                align-items: center;
-                gap: 5px;
-                color: #57615f;
-                font-size: 10px;
-                font-weight: 760;
-                white-space: nowrap;
-            }
-            .xy-result-state::before {
-                width: 6px;
-                height: 6px;
-                border-radius: 99px;
-                background: currentColor;
-                content: "";
-            }
-            .xy-tone-ok { color: #19865f; }
-            .xy-tone-bad { color: var(--xy-danger); }
-            .xy-tone-partial { color: var(--xy-warning); }
-            .xy-tone-pending, .xy-tone-muted { color: #8a9392; }
-            .xy-result-score {
-                margin-top: 4px;
-                color: var(--xy-muted);
-                font-size: 10px;
-            }
-            .xy-answer-text {
-                margin-top: 4px;
-                color: #626c6b;
-                font-size: 10.5px;
-                line-height: 1.55;
-                overflow-wrap: anywhere;
-                white-space: pre-wrap;
-            }
-            .xy-answer-key {
-                color: #8a9392;
-            }
-            .xy-result-note {
-                margin-top: 10px;
-                color: #96713b;
-                font-size: 10.5px;
-                line-height: 1.5;
-            }
-            @keyframes xyFadeIn {
-                from { opacity: 0; }
-                to { opacity: 1; }
-            }
-            #xy-magic-box button:focus-visible {
-                outline: 2px solid rgba(98,230,181,.72);
-                outline-offset: 2px;
-            }
-            @media (prefers-reduced-motion: reduce) {
-                .xy-result-row {
-                    animation: none !important;
-                }
-                #xy-panel-shell, #xy-result-panel, .xy-image-drawer, .xy-homework-drawer, #xy-floating-trigger, .xy-action-btn, .xy-submit-btn, .xy-icon-btn, .xy-mini-btn, .xy-notice-action, .xy-result-tab {
-                    transition: none !important;
-                }
-            }
-        `;
-        (document.head || document.documentElement).appendChild(style);
-    }
-
-    function renderSubmissionResultPanel() {
-        const container = document.getElementById('xy-result-content');
-        if (!container) return;
-        container.innerHTML = '';
-
-        if (!globalSubmissionResult || globalSubmissionResult.state !== 'submitted') {
-            const empty = document.createElement('div');
-            empty.className = 'xy-empty-state';
-            empty.textContent = globalSubmissionResult?.message || '等待题目数据加载...';
-            container.appendChild(empty);
-            return;
-        }
-
-        const result = globalSubmissionResult;
-        const questionResults = Array.isArray(result.questionResults) ? result.questionResults : [];
-        const wrongCount = questionResults.filter(item => item.tone === 'bad').length;
-        const partialCount = questionResults.filter(item => item.tone === 'partial').length;
-        const badTabCount = wrongCount + partialCount;
-        const pendingCount = questionResults.filter(item => item.tone === 'pending').length;
-        const detailParts = [`${result.correctNum ?? '-'} 正确`, `${wrongCount} 错误`];
-        if (partialCount > 0) detailParts.push(`${partialCount} 部分得分`);
-        detailParts.push(`${pendingCount} 待批改`);
-        const summary = document.createElement('div');
-        summary.innerHTML = `
-            <div class="xy-score-block">
-                <span class="xy-score-value">${escapeHTML(result.actualScore ?? '-')}</span>
-                <span class="xy-score-total"> / ${escapeHTML(result.totalScore ?? '-')} 分</span>
-                <div class="xy-score-detail">${escapeHTML(detailParts.join(' · '))}</div>
-            </div>
-            <div class="xy-result-tabs">
-                <button class="xy-result-tab ${resultFilter === 'all' ? 'xy-active' : ''}" type="button" data-filter="all">全部 ${escapeHTML(questionResults.length)}</button>
-                <button class="xy-result-tab ${resultFilter === 'bad' ? 'xy-active' : ''}" type="button" data-filter="bad">错题 ${escapeHTML(badTabCount)}</button>
-                <button class="xy-result-tab ${resultFilter === 'pending' ? 'xy-active' : ''}" type="button" data-filter="pending">待批改 ${escapeHTML(pendingCount)}</button>
-            </div>
-        `;
-        container.appendChild(summary);
-
-        if (!result.canShowStandardAnswer) {
-            const note = document.createElement('div');
-            note.className = 'xy-result-note';
-            note.textContent = '平台未公开标准答案，本面板仅展示接口已返回的对错和分数。';
-            container.appendChild(note);
-        }
-
-        const list = document.createElement('div');
-        list.className = 'xy-result-list';
-        const resultSections = Array.isArray(result.sections) && result.sections.length
-            ? result.sections
-            : [{ key: 'flat', titleText: '', isGroup: false, questionResults }];
-        const filteredSections = resultSections.map(section => ({
-            ...section,
-            questionResults: section.questionResults.filter(item => {
-                if (resultFilter === 'all') return true;
-                if (resultFilter === 'bad') return item.tone === 'bad' || item.tone === 'partial';
-                return item.tone === resultFilter;
-            })
-        })).filter(section => section.questionResults.length > 0);
-        const filteredResults = filteredSections.flatMap(section => section.questionResults);
-        if (filteredResults.length === 0) {
-            const empty = document.createElement('div');
-            empty.className = 'xy-empty-state';
-            empty.textContent = resultFilter === 'all' ? '暂无题目结果。' : '当前筛选项没有题目。';
-            list.appendChild(empty);
-        }
-        filteredSections.forEach(section => {
-            if (section.isGroup && section.titleText) {
-                const sectionHeader = document.createElement('div');
-                sectionHeader.className = 'xy-result-section-title';
-                sectionHeader.textContent = section.titleText;
-                list.appendChild(sectionHeader);
-            }
-            section.questionResults.forEach(item => {
-                const row = document.createElement('div');
-                row.className = 'xy-result-row';
-                const questionLine = item.title
-                    ? `<div class="xy-answer-text"><span class="xy-answer-key">题目：</span>${escapeHTML(item.title)}</div>`
-                    : '';
-                const standardLine = item.standardAnswer
-                    ? `<div class="xy-answer-text"><span class="xy-answer-key">标准答案：</span>${escapeHTML(item.standardAnswer)}</div>`
-                    : '';
-                row.innerHTML = `
-                    <div class="xy-result-row-top">
-                        <div class="xy-result-question">${String(item.index).padStart(2, '0')} · ${escapeHTML(item.typeLabel)}</div>
-                        <div class="xy-result-state xy-tone-${escapeHTML(item.tone || 'muted')}">${escapeHTML(item.stateLabel)}</div>
-                    </div>
-                    <div class="xy-result-score">${escapeHTML(item.scoreText)}</div>
-                    ${questionLine}
-                    <div class="xy-answer-text"><span class="xy-answer-key">我的答案：</span>${escapeHTML(item.userAnswer)}</div>
-                    ${standardLine}
-                `;
-                list.appendChild(row);
-            });
-        });
-        container.appendChild(list);
-        container.querySelectorAll('.xy-result-tab').forEach(tab => {
-            tab.onclick = () => {
-                resultFilter = tab.dataset.filter || 'all';
-                renderSubmissionResultPanel();
-            };
-        });
-    }
-
-    function clampNumber(value, min, max) {
-        return Math.min(Math.max(value, min), max);
-    }
-
-    function getDefaultCollapsedPosition() {
-        return {
-            left: Math.max(UI_MARGIN, window.innerWidth - DEFAULT_TRIGGER_WIDTH - 20),
-            top: Math.max(UI_MARGIN, Math.round(window.innerHeight * 0.15))
-        };
-    }
-
-    function getSavedCollapsedPosition() {
-        try {
-            const saved = JSON.parse(localStorage.getItem(UI_POSITION_KEY) || localStorage.getItem(LEGACY_UI_POSITION_KEY) || 'null');
-            if (saved && Number.isFinite(saved.left) && Number.isFinite(saved.top)) {
-                if (!localStorage.getItem(UI_POSITION_KEY)) localStorage.setItem(UI_POSITION_KEY, JSON.stringify(saved));
-                return saved;
-            }
-        } catch (e) {
-            localStorage.removeItem(UI_POSITION_KEY);
-        }
-        return getDefaultCollapsedPosition();
-    }
-
-    function clampPositionForSize(left, top, width, height) {
-        const safeWidth = Math.min(width || DEFAULT_TRIGGER_WIDTH, window.innerWidth - UI_MARGIN * 2);
-        const safeHeight = Math.min(height || 60, window.innerHeight - UI_MARGIN * 2);
-        return {
-            left: clampNumber(left, UI_MARGIN, Math.max(UI_MARGIN, window.innerWidth - safeWidth - UI_MARGIN)),
-            top: clampNumber(top, UI_MARGIN, Math.max(UI_MARGIN, window.innerHeight - safeHeight - UI_MARGIN))
-        };
-    }
-
-    function setBoxPosition(box, left, top) {
-        box.style.left = `${left}px`;
-        box.style.top = `${top}px`;
-        box.style.right = 'auto';
-    }
-
-    function saveCollapsedPosition(position) {
-        const trigger = document.getElementById('xy-floating-trigger');
-        const width = trigger?.offsetWidth || DEFAULT_TRIGGER_WIDTH;
-        const height = trigger?.offsetHeight || 58;
-        const clamped = clampPositionForSize(position.left, position.top, width, height);
-        localStorage.setItem(UI_POSITION_KEY, JSON.stringify(clamped));
-        return clamped;
-    }
-
-    function applyCollapsedPosition(box = document.getElementById('xy-magic-box')) {
-        if (!box) return;
-        const trigger = document.getElementById('xy-floating-trigger');
-        const saved = getSavedCollapsedPosition();
-        const width = trigger?.offsetWidth || DEFAULT_TRIGGER_WIDTH;
-        const height = trigger?.offsetHeight || 58;
-        const clamped = clampPositionForSize(saved.left, saved.top, width, height);
-        setBoxPosition(box, clamped.left, clamped.top);
-    }
-
-    function applyPanelLayout() {
-        const shell = document.getElementById('xy-panel-shell');
-        const resultPanel = document.getElementById('xy-result-panel');
-        const mainPanel = document.getElementById('xy-panel');
-        if (!shell || !mainPanel) return;
-
-        const narrow = isNarrowPanelLayout();
-        shell.classList.toggle('xy-narrow', narrow);
-        shell.style.width = `${getDesiredShellWidth()}px`;
-        mainPanel.style.order = '2';
-        if (resultPanel) {
-            resultPanel.style.order = '1';
-            resultPanel.style.display = panelExpanded && resultPanelVisible ? 'block' : 'none';
-        }
-    }
-
-    function getMainPanelWidth() {
-        return Math.min(410, window.innerWidth - UI_MARGIN * 2);
-    }
-
-    function isNarrowPanelLayout() {
-        return window.innerWidth < 760;
-    }
-
-    function getDesiredShellWidth() {
-        const mainWidth = getMainPanelWidth();
-        if (!resultPanelVisible || isNarrowPanelLayout()) return mainWidth;
-        return Math.min(mainWidth + 310 + 10, window.innerWidth - UI_MARGIN * 2);
-    }
-
-    function applyExpandedPosition() {
-        const box = document.getElementById('xy-magic-box');
-        if (!box) return;
-        const collapsed = getSavedCollapsedPosition();
-        const triggerWidth = lastTriggerWidth || DEFAULT_TRIGGER_WIDTH;
-        const shellWidth = getDesiredShellWidth();
-        const boxHeight = Math.min(box.offsetHeight || window.innerHeight * 0.78, window.innerHeight - UI_MARGIN * 2);
-        const left = collapsed.left + triggerWidth - shellWidth;
-        const clamped = clampPositionForSize(left, collapsed.top, shellWidth, boxHeight);
-        setBoxPosition(box, clamped.left, clamped.top);
-    }
-
-    function saveExpandedPositionAsCollapsedAnchor() {
-        const box = document.getElementById('xy-magic-box');
-        if (!box) return;
-        const shellWidth = getDesiredShellWidth();
-        const triggerWidth = lastTriggerWidth || DEFAULT_TRIGGER_WIDTH;
-        const rect = box.getBoundingClientRect();
-        saveCollapsedPosition({
-            left: rect.left + shellWidth - triggerWidth,
-            top: rect.top
-        });
-    }
-
-    function clampUIPanelToViewport() {
-        const box = document.getElementById('xy-magic-box');
-        if (!box) return;
-        if (panelExpanded) {
-            applyExpandedPosition();
-            return;
-        }
-        const rect = box.getBoundingClientRect();
-        const trigger = document.getElementById('xy-floating-trigger');
-        const width = trigger?.offsetWidth || rect.width || DEFAULT_TRIGGER_WIDTH;
-        const height = trigger?.offsetHeight || rect.height || 58;
-        const clamped = clampPositionForSize(rect.left, rect.top, width, height);
-        setBoxPosition(box, clamped.left, clamped.top);
-    }
-
-    function makeUIPanelDraggable(box, handles) {
-        let dragging = false;
-        let moved = false;
-        let startX = 0;
-        let startY = 0;
-        let startLeft = 0;
-        let startTop = 0;
-
-        const onMove = event => {
-            if (!dragging) return;
-            const dx = event.clientX - startX;
-            const dy = event.clientY - startY;
-            if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
-            const width = Math.min(box.offsetWidth || 170, window.innerWidth - 16);
-            const height = Math.min(box.offsetHeight || 60, window.innerHeight - 16);
-            const nextLeft = clampNumber(startLeft + dx, 8, Math.max(8, window.innerWidth - width - 8));
-            const nextTop = clampNumber(startTop + dy, 8, Math.max(8, window.innerHeight - height - 8));
-            box.style.left = `${nextLeft}px`;
-            box.style.top = `${nextTop}px`;
-            box.dataset.dragMoved = moved ? '1' : '0';
-        };
-
-        const onUp = () => {
-            if (!dragging) return;
-            dragging = false;
-            delete box.dataset.dragging;
-            if (panelExpanded) {
-                saveExpandedPositionAsCollapsedAnchor();
-            } else {
-                const rect = box.getBoundingClientRect();
-                saveCollapsedPosition({ left: rect.left, top: rect.top });
-            }
-            setTimeout(() => { box.dataset.dragMoved = '0'; }, 80);
-            window.removeEventListener('pointermove', onMove);
-            window.removeEventListener('pointerup', onUp);
-        };
-
-        handles.forEach(handle => {
-            if (!handle) return;
-            handle.addEventListener('pointerdown', event => {
-                if (handle.id !== 'xy-floating-trigger' && event.target.closest('button, textarea, input, select, a')) return;
-                dragging = true;
-                moved = false;
-                startX = event.clientX;
-                startY = event.clientY;
-                const rect = box.getBoundingClientRect();
-                startLeft = rect.left;
-                startTop = rect.top;
-                box.dataset.dragMoved = '0';
-                box.dataset.dragging = '1';
-                window.addEventListener('pointermove', onMove);
-                window.addEventListener('pointerup', onUp);
-            });
-        });
-    }
-
-    function updateUIPanelData() {
-        const floatingStatus = document.getElementById('xy-floating-status');
-        if (floatingStatus) floatingStatus.innerText = globalQuestionsData.length > 0 ? `${globalQuestionsData.length} 道题已同步` : '等待同步题目';
-        const status = document.getElementById('xy-status');
-        if (status) status.innerText = globalQuestionsData.length > 0
-            ? `${SCRIPT_NAME} 已读取 ${globalQuestionsData.length} 道题，检测到 ${globalImageAssets.length} 张图片。`
-            : '等待题目数据加载...';
-        const questionMetric = document.getElementById('xy-question-metric');
-        if (questionMetric) questionMetric.textContent = `${globalQuestionsData.length} 道题已读取`;
-        const imageMetric = document.getElementById('xy-image-metric');
-        if (imageMetric) imageMetric.textContent = `${globalImageAssets.length} 张图片`;
-        const taskState = document.getElementById('xy-task-state');
-        if (taskState) taskState.textContent = globalQuestionsData.length ? '记录可保存' : '等待任务';
-        const connectionStatus = document.getElementById('xy-connection-status');
-        if (connectionStatus) connectionStatus.textContent = globalQuestionsData.length ? '已连接当前任务' : '等待连接任务';
-        const resultToggle = document.getElementById('xy-result-toggle-btn');
-        const hasSubmittedResult = globalSubmissionResult?.state === 'submitted';
-        if (resultToggle) {
-            resultToggle.disabled = !hasSubmittedResult;
-            resultToggle.title = hasSubmittedResult ? '显示或隐藏提交结果' : '当前任务尚无已提交成绩';
-        }
-        renderImageAssets();
-        renderSubmissionResultPanel();
-        updateNoticeUI();
-        updateImageDrawerUI();
-        updateHomeworkDrawerUI();
-        applyPanelLayout();
-        clampUIPanelToViewport();
-    }
-
-    function updateImageDrawerUI() {
-        const drawer = document.getElementById('xy-image-drawer');
-        const button = document.getElementById('xy-image-drawer-btn');
-        if (drawer) drawer.classList.toggle('xy-drawer-open', imageDrawerVisible);
-        if (button) {
-            button.setAttribute('aria-expanded', imageDrawerVisible ? 'true' : 'false');
-            button.title = imageDrawerVisible ? '关闭题目图片' : '打开题目图片';
-        }
-    }
-
-    function toggleImageDrawer(visible) {
-        imageDrawerVisible = visible;
-        if (visible) homeworkDrawerVisible = false;
-        updateImageDrawerUI();
-        updateHomeworkDrawerUI();
-    }
-
-    function updateHomeworkDrawerUI() {
-        const drawer = document.getElementById('xy-homework-drawer');
-        const button = document.getElementById('xy-homework-drawer-btn');
-        if (drawer) drawer.classList.toggle('xy-drawer-open', homeworkDrawerVisible);
-        if (button) {
-            button.setAttribute('aria-expanded', homeworkDrawerVisible ? 'true' : 'false');
-            button.title = homeworkDrawerVisible ? '关闭作业导出' : '打开作业导出';
-        }
-        const courseInput = document.getElementById('xy-course-name-input');
-        if (courseInput && document.activeElement !== courseInput) {
-            courseInput.value = getCurrentCourseName();
-            courseInput.placeholder = globalCourseMeta.loading ? '正在读取课程名...' : '可手动填写课程名';
-        }
-        const headerSelect = document.getElementById('xy-homework-header-mode');
-        if (headerSelect && document.activeElement !== headerSelect) {
-            headerSelect.value = homeworkExportOptions.headerMode;
-        }
-        const answerToggle = document.getElementById('xy-homework-answers-toggle');
-        if (answerToggle && document.activeElement !== answerToggle) {
-            answerToggle.checked = homeworkExportOptions.includeAnswers;
-        }
-        const answerPosition = document.getElementById('xy-homework-answer-position');
-        if (answerPosition) {
-            if (document.activeElement !== answerPosition) {
-                answerPosition.value = homeworkExportOptions.answerPosition;
-            }
-            answerPosition.disabled = !homeworkExportOptions.includeAnswers;
-        }
-        const meta = document.getElementById('xy-homework-meta');
-        if (meta) {
-            const title = globalPaperMeta.title || '未读取作业名';
-            const course = getCurrentCourseName() || (globalCourseMeta.error ? '课程名读取失败，可手动填写' : '未读取课程名');
-            meta.textContent = `${title} · ${globalQuestionsData.length} 道题 · ${course}`;
-        }
-    }
-
-    function toggleHomeworkDrawer(visible) {
-        homeworkDrawerVisible = visible;
-        if (visible) imageDrawerVisible = false;
-        updateImageDrawerUI();
-        updateHomeworkDrawerUI();
-    }
-
-    function clearMainTransition() {
-        uiTransitionToken += 1;
-        if (uiTransitionTimer) clearTimeout(uiTransitionTimer);
-        uiTransitionTimer = null;
-        return uiTransitionToken;
-    }
-
-    function toggleUIPanel(expanded) {
-        const trigger = document.getElementById('xy-floating-trigger');
-        const panelShell = document.getElementById('xy-panel-shell');
-        if (!trigger || !panelShell) return;
-        const token = clearMainTransition();
-        if (expanded) {
-            lastTriggerWidth = trigger.getBoundingClientRect().width || trigger.offsetWidth || lastTriggerWidth || DEFAULT_TRIGGER_WIDTH;
-        }
-        panelExpanded = expanded;
-        if (expanded) {
-            markNoticeAsRead();
-            trigger.classList.add('xy-trigger-hidden');
-            panelShell.classList.remove('xy-shell-closing');
-            panelShell.style.display = 'flex';
-            applyPanelLayout();
-            applyExpandedPosition();
-            const raf = window.requestAnimationFrame || ((fn) => setTimeout(fn, 0));
-            raf(() => {
-                if (token === uiTransitionToken && panelExpanded) panelShell.classList.add('xy-shell-open');
-            });
+    function documentHtml(p, kind, ctx) {
+        const course = getCourse(p.groupId);
+        const answers = kind === 'homework' && prefs.withAnswers ? exportAnswers(p) : new Map();
+        const inline = prefs.answerAt === 'inline';
+        let header = '';
+        if (kind === 'ai') {
+            header = `<header><h1>${esc(p.title)}</h1><p class="meta">${course ? `课程：${esc(course)} · ` : ''}共 ${p.questions.length} 题</p>
+                <div class="rules">请根据以下题目作答，严格按指定格式返回答案，不要输出解析、注释或额外说明。<br>
+                单选/判断：1 =&gt; A　　多选：2 =&gt; A,C　　填空：3 =&gt; const | let<br>
+                简答：4 =&gt; 完整文字答案　　匹配：5 =&gt; A:a,d | B:b,c　　附件题无需回答</div>
+                <p class="tip">${PRINT_TIP}</p></header>`;
         } else {
-            imageDrawerVisible = false;
-            homeworkDrawerVisible = false;
-            updateImageDrawerUI();
-            updateHomeworkDrawerUI();
-            panelShell.classList.add('xy-shell-closing');
-            panelShell.classList.remove('xy-shell-open');
-            uiTransitionTimer = setTimeout(() => {
-                if (token !== uiTransitionToken || panelExpanded) return;
-                panelShell.style.display = 'none';
-                panelShell.classList.remove('xy-shell-closing');
-                applyCollapsedPosition();
-                trigger.classList.remove('xy-trigger-hidden');
-            }, 190);
+            const title = { both: p.title, course: course && `课程：${course}`, paper: p.title, none: '' }[prefs.header];
+            const meta = prefs.header === 'both' && course ? `<p class="meta">课程：${esc(course)}</p>` : '';
+            header = title ? `<header><h1>${esc(title)}</h1>${meta}<p class="tip">${PRINT_TIP}</p></header>` : `<p class="tip">${PRINT_TIP}</p>`;
+        }
+        const body = p.sections.map(section =>
+            (section.title?.segments.length ? `<div class="group">${richHtml(section.title.segments, ctx, true)}</div>` : '')
+            + section.questions.map(q => questionHtml(q, ctx, inline ? answers.get(q.index) : '')).join('')).join('');
+        const appendix = !inline && answers.size
+            ? `<section class="appendix"><h2>答案</h2>${[...answers].map(([n, a]) => `<div class="row"><b>${n}.</b>${richHtml([{ type: 'text', value: a }], ctx, true)}</div>`).join('')}</section>`
+            : '';
+        return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${esc(p.title)}</title><style>${PRINT_CSS}</style></head><body>${header}<main>${body}</main>${appendix}</body></html>`;
+    }
+
+    async function typesetIn(win) {
+        const nodes = [...win.document.querySelectorAll('.tex')];
+        const source = nodes.length ? GM_getResourceText('mathjax') : '';
+        if (!source) return;
+        const run = code => {
+            const script = win.document.createElement('script');
+            script.textContent = code;
+            win.document.head.appendChild(script);
+        };
+        run("window.MathJax = { startup: { typeset: false }, svg: { fontCache: 'none' }, options: { enableMenu: false } };");
+        run(source);
+        const mathJax = win.MathJax;
+        await mathJax.startup.promise;
+        nodes.forEach(node => {
+            try {
+                node.replaceChildren(mathJax.tex2svg(node.textContent, { display: node.dataset.d === '1' }));
+                node.classList.add('ok');
+            } catch (e) {
+                console.warn(`[${NAME}] 公式渲染失败`, node.textContent, e);
+            }
+        });
+        win.document.head.appendChild(mathJax.svgStylesheet());
+    }
+
+    async function printDocument(kind) {
+        const p = paper;
+        const win = window.open('', '_blank');
+        if (!win) throw new Error('浏览器拦截了新窗口，请允许本站弹出窗口后再试');
+        win.document.write(`<!doctype html><meta charset="utf-8"><title>正在生成</title><body style="margin:0;padding:32px;font:15px/1.7 'Microsoft YaHei',sans-serif;color:#444">正在整理题目和图片…</body>`);
+        win.document.close();
+        try {
+            const ctx = { images: await inlineImages(p), renderMath: kind === 'homework' };
+            win.document.open();
+            win.document.write(documentHtml(p, kind, ctx));
+            win.document.close();
+            if (ctx.renderMath) await typesetIn(win).catch(e => console.warn(`[${NAME}] MathJax 加载失败，公式保留 TeX`, e));
+            await Promise.all([...win.document.images].map(img => img.decode().catch(() => {})));
+            win.focus();
+            win.print();
+        } catch (e) {
+            win.document.body.textContent = `导出失败：${e.message}`;
+            throw e;
         }
     }
 
-    function toggleResultPanel(visible) {
-        const panelShell = document.getElementById('xy-panel-shell');
-        const resultPanel = document.getElementById('xy-result-panel');
-        if (!panelShell || !resultPanel) return;
-        if (visible && globalSubmissionResult?.state !== 'submitted') {
-            setUIStatus('当前任务尚未检测到已提交成绩。');
-            return;
-        }
-        if (resultPanelTransitionTimer) clearTimeout(resultPanelTransitionTimer);
-        resultPanelTransitionTimer = null;
-        if (visible) {
-            resultPanelVisible = true;
-            applyPanelLayout();
-            if (panelExpanded) applyExpandedPosition();
-            resultPanel.classList.add('xy-result-fading');
-            const raf = window.requestAnimationFrame || ((fn) => setTimeout(fn, 0));
-            raf(() => resultPanel.classList.remove('xy-result-fading'));
-            return;
-        }
-        resultPanel.classList.add('xy-result-fading');
-        resultPanelTransitionTimer = setTimeout(() => {
-            resultPanelVisible = false;
-            resultPanel.style.display = 'none';
-            resultPanel.classList.remove('xy-result-fading');
-            applyPanelLayout();
-            if (panelExpanded) applyExpandedPosition();
-        }, 170);
+    async function downloadDoc() {
+        const p = paper;
+        const html = documentHtml(p, 'homework', { images: await inlineImages(p), renderMath: false });
+        const url = URL.createObjectURL(new Blob(['\ufeff', html], { type: 'application/msword' }));
+        const link = Object.assign(document.createElement('a'), { href: url, download: `${fileSafe(p.title)}_${stamp()}.doc` });
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
     }
 
-    function setButtonLabel(button, label) {
-        const labelNode = button?.querySelector('[data-xy-label]');
-        if (labelNode) labelNode.textContent = label;
+    async function copyImage(src) {
+        const blob = await fetchImage(src);
+        let png = blob;
+        if (blob.type !== 'image/png') {
+            const bitmap = await createImageBitmap(blob);
+            const canvas = Object.assign(document.createElement('canvas'), { width: bitmap.width, height: bitmap.height });
+            canvas.getContext('2d').drawImage(bitmap, 0, 0);
+            png = await new Promise((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error('图片转换失败')), 'image/png'));
+        }
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
     }
 
-    function createUIPanel() {
-        const existingBox = document.getElementById("xy-magic-box");
-        if (existingBox) {
-            updateUIPanelData();
-            return;
+    async function loadNotice() {
+        try {
+            const res = await gmRequest({
+                method: 'POST',
+                url: NOTICE_API,
+                timeout: 10000,
+                headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+                data: JSON.stringify({ action: 'get_notice', channel: NOTICE_CHANNEL, client: `xiaoya-zhanzhanzhan-v${VERSION}` }),
+            });
+            const data = JSON.parse(res.responseText);
+            if (data.ok !== true || data.channel !== NOTICE_CHANNEL) throw new Error('公告格式不对');
+            notice = { content: String(data.content || '暂无公告'), version: String(data.version || ''), updatedAt: String(data.updatedAt || '') };
+        } catch (e) {
+            console.warn(`[${NAME}] 公告读取失败`, e);
+            notice = { error: true, content: '公告加载失败' };
         }
-        if (!document.body) {
-            setTimeout(createUIPanel, 100);
-            return;
+        view.notice();
+    }
+
+    const noticeKey = () => notice && !notice.error ? `${notice.version}|${notice.updatedAt}|${notice.content}` : '';
+    const noticeUnread = () => !!noticeKey() && notice.content !== '暂无公告' && prefs.seen !== noticeKey();
+    const hasUpdate = () => !!notice && !notice.error && isNewer(notice.version, VERSION);
+
+    const ICON = {
+        copy: '<svg class="i" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
+        out: '<svg class="i" viewBox="0 0 24 24"><path d="M12 15V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>',
+        img: '<svg class="i" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m20.5 16-4.5-4.5-8.5 8"/></svg>',
+        score: '<svg class="i" viewBox="0 0 24 24"><path d="M5 20V11"/><path d="M12 20V5"/><path d="M19 20v-6"/></svg>',
+        min: '<svg class="i" viewBox="0 0 24 24"><path d="M6 12h12"/></svg>',
+        x: '<svg class="i" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg>',
+        go: '<svg class="i" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>',
+        theme: '<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>',
+    };
+
+    const SVG = {
+        tape: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#e8edfc"/><polygon points="25,35 58,35 54.5,39.5 58,44 25,44" fill="#2f54d4"/><circle cx="25" cy="27" r="17" fill="#2f54d4"/><circle cx="25" cy="27" r="12.5" fill="none" stroke="#6d8bec" stroke-width="1.5"/><circle cx="25" cy="27" r="8.5" fill="#e8edfc"/></svg>',
+        zhu: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#18202e"/><path d="M13.5 33.5c4.6-.4 8.8 3.4 13 10.4 5.6-12.4 13.6-23.2 24-31.4-8.6 10.2-15.8 22.8-20.4 36.2-1.1 2.6-4.1 2.8-5.5.4-3.2-6.2-6.6-11.4-11.1-15.6z" fill="#e2583e"/></svg>',
+        ring: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 104 74" preserveAspectRatio="none"><path d="M30 13C58 3 96 12 98 34c2 22-36 34-62 32C14 64 2 52 7 36 11 24 24 15 46 11" fill="none" stroke="#e2583e" stroke-width="2.4" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>',
+        check: color => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3.5 12.6c2-.2 3.8 1.4 5.6 4.4 2.4-5.4 5.9-10.1 10.4-13.6-3.7 4.4-6.8 9.9-8.8 15.7-.5 1.1-1.8 1.2-2.4.2-1.4-2.7-2.8-4.9-4.8-6.7z" fill="${color}"/></svg>`,
+        cross: color => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${color}"><path d="M5.2 5.5c4.6 3.3 9 7.7 13.6 13.4-.5.6-1.2.8-1.8.5C12.6 14.6 8.6 10.5 4.4 6.6c-.2-.7.2-1.2.8-1.1z"/><path d="M18.6 4.6c.6.1 1 .6.8 1.2-4.2 4.1-8.2 8.7-12.4 13.6-.7.3-1.3.1-1.6-.5 3.9-5.4 8.2-10.2 13.2-14.3z"/></svg>`,
+        dashed: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5" fill="none" stroke="#8e9aad" stroke-width="1.4" stroke-dasharray="2.6 2.6"/></svg>',
+    };
+    const svgUrl = svg => `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+    const THEMES = { tape: '胶带', zhu: '朱批' };
+
+    const STATE_LABEL = { ok: '正确', part: '部分得分', bad: '错误', none: '未作答', pending: '待批改' };
+    const MARGIN = 8;
+
+    const CSS = `
+
+        .zz { all: initial; --head-h: 55px; --z-sans: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", sans-serif; --z-num: "Segoe UI", sans-serif; position: fixed; z-index: 2147483000; font: 13px/1.5 var(--z-sans); color: var(--ink); -webkit-font-smoothing: antialiased; text-align: left; }
+        .zz *, .zz *::before, .zz *::after { box-sizing: border-box; }
+        .zz button { margin: 0; font: inherit; color: inherit; cursor: pointer; }
+        .zz button:disabled { cursor: default; opacity: .45; }
+        .zz :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .zz p { margin: 0; }
+        [hidden] { display: none !important; }
+        .trigger { display: none; position: relative; align-items: center; border: 0; touch-action: none; user-select: none; }
+        .zz[data-open="0"] .trigger { display: flex; }
+        .zz[data-open="0"] .shell { display: none; }
+        .shell { position: relative; }
+        .zz.enter .shell { animation: zz-in .2s cubic-bezier(.2, .8, .2, 1); }
+        .zz.leave .shell { animation: zz-out .14s ease forwards; }
+        @keyframes zz-in { from { opacity: 0; transform: translateY(-6px) scale(.985); } }
+        @keyframes zz-out { to { opacity: 0; } }
+        .t-dot { position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--alert); }
+        .t-mark, .mark { display: block; flex: none; background: center / contain no-repeat var(--logo); }
+        .tape, .ring, .mk, .cn { display: none; }
+
+        /* 首次引导：选风格 → 用法。引导时只显示引导内容 */
+        .guide { display: none; flex: 1 1 auto; min-height: 0; padding: 4px 16px 18px; overflow: auto; }
+        .zz[data-guide="1"] .guide { display: block; }
+        .zz[data-guide="1"] .body, .zz[data-guide="1"] .foot, .zz[data-guide="1"] .result, .zz[data-guide="1"] [data-res-btn] { display: none !important; }
+        .g-page { display: none; }
+        .guide[data-step="1"] .g-page[data-step="1"], .guide[data-step="2"] .g-page[data-step="2"] { display: grid; gap: 14px; }
+        .g-kicker { font-size: 11.5px; color: var(--muted); }
+        .g-title { margin: -8px 0 0; font-size: 18px; line-height: 1.35; font-weight: 700; }
+        .themes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .theme-card { display: grid; gap: 4px; padding: 0 0 10px; text-align: left; overflow: hidden; border: 1.5px solid var(--line); background: transparent; }
+        .theme-card[aria-pressed="true"] { border-color: var(--accent); }
+        .theme-card b { padding: 0 10px; font-size: 13.5px; }
+        .theme-card small { padding: 0 10px; font-size: 11px; line-height: 1.5; color: var(--muted); }
+        .tc-art { display: block; position: relative; height: 72px; margin-bottom: 6px; }
+        .tc-art.tape-art { background: linear-gradient(135deg, #eef2fb, #dce4f6); }
+        .tc-art.tape-art::before { content: ""; position: absolute; left: 16px; right: 16px; top: 20px; bottom: -8px; border-radius: 9px; background: rgba(255, 255, 255, .9); box-shadow: 0 6px 16px -8px rgba(24, 34, 64, .4); }
+        .tc-art.tape-art::after { content: ""; position: absolute; left: calc(50% - 26px); top: 12px; width: 52px; height: 15px; transform: rotate(-4deg); background: rgba(98, 131, 236, .7); clip-path: polygon(0 0, 100% 0, 95% 25%, 100% 50%, 95% 75%, 100% 100%, 0 100%, 5% 75%, 0 50%, 5% 25%); }
+        .tc-art.zhu-art { background: ${svgUrl(SVG.check('#e2583e'))} 58% 52% / 34px no-repeat, #18202e; }
+        .tc-art.zhu-art::after { content: ""; position: absolute; left: 22px; right: 22px; bottom: 14px; height: 1px; background: rgba(241, 237, 228, .25); }
+        .g-hint { font-size: 11.5px; color: var(--muted); }
+        .g-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+        .g-list li { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: start; }
+        .g-t { font-size: 13px; font-weight: 600; }
+        .g-list li > span { grid-column: 2; font-size: 12px; color: var(--ink-2); }
+        .g-tips { margin: 0; padding: 12px 0 0 16px; border-top: 1px solid var(--line); display: grid; gap: 4px; font-size: 11.5px; color: var(--muted); }
+        .g-acts { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; }
+
+        .main { position: relative; width: 356px; max-height: calc(100vh - ${MARGIN * 2}px); display: flex; flex-direction: column; }
+        .head { display: flex; align-items: center; gap: 9px; padding: 14px 14px 12px 16px; cursor: move; user-select: none; touch-action: none; }
+        .mark { width: 22px; height: 22px; }
+        .brand { font-weight: 700; font-size: 14px; }
+        .ver { font: 500 11px var(--z-num); color: var(--muted); }
+        .sp { flex: 1; }
+        .ib { width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 0; background: transparent; border-radius: 8px; color: var(--muted); }
+        .ib:hover { background: var(--hover); color: var(--ink); }
+        svg.i { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+        .body { flex: 1 1 auto; min-height: 0; overflow: auto; scrollbar-width: thin; }
+        .task { padding: 4px 16px 12px; }
+        .course { font-size: 12px; color: var(--muted); min-height: 18px; }
+        .paper { font-size: 18px; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
+        .meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .meta span { font-size: 11px; color: var(--muted); }
+        .empty { padding: 4px 16px 16px; color: var(--muted); font-size: 12.5px; }
+        .zz[data-paper="0"] .task, .zz[data-paper="0"] .steps, .zz[data-paper="0"] .foot { display: none; }
+        .zz[data-paper="1"] .empty { display: none; }
+        .notice { margin: 0 16px 12px; display: flex; align-items: baseline; gap: 8px; font-size: 12px; }
+        .n-tag { flex: none; position: relative; font-weight: 700; }
+        .n-tag.unread::after { content: ""; position: absolute; top: 0; right: -6px; width: 5px; height: 5px; border-radius: 50%; background: var(--alert); }
+        .n-badge { flex: none; font: 600 10.5px var(--z-num); padding: 0 6px; border-radius: 999px; color: var(--alert); background: var(--alert-soft); }
+        .n-txt { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--ink-2); }
+        .notice[data-open="1"] .n-txt { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto; }
+        .n-txt a { color: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
+        .n-more { flex: none; border: 0; background: none; padding: 0; color: var(--accent); font-size: 12px; }
+        .steps { list-style: none; margin: 0; padding: 6px 16px 16px; display: grid; gap: 16px; }
+        .step-h { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
+        .btn { width: 100%; height: 40px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid transparent; font-weight: 600; font-size: 13px; transition: background .15s ease, color .15s ease, border-color .15s ease, transform .1s ease; }
+        .btn:active:not(:disabled) { transform: translateY(1px); }
+        .btn.sm { height: 32px; font-size: 12px; font-weight: 500; }
+        .hint, .s-msg { font-size: 11.5px; color: var(--muted); margin-top: 7px; }
+        .s-msg[data-kind="ok"] { color: var(--good); }
+        .s-msg[data-kind="warn"] { color: var(--warn); }
+        .s-msg[data-kind="error"] { color: var(--bad); }
+        textarea { display: block; width: 100%; height: 128px; margin: 0; resize: vertical; padding: 8px 10px; font: 12px/22px "Cascadia Mono", Consolas, ui-monospace, monospace; color: var(--ink); outline: none; }
+        .parse { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 11.5px; color: var(--muted); }
+        .p-txt { flex: none; white-space: nowrap; }
+        .p-miss { color: var(--warn); text-align: right; }
+        .bubbles { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+        .bubbles i { font-style: normal; }
+        .issues { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 11.5px; color: var(--bad); }
+        .bar { height: 3px; margin-top: 8px; border-radius: 2px; background: var(--track); overflow: hidden; visibility: hidden; }
+        .bar.on { visibility: visible; }
+        .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .1s linear; }
+        .foot { flex: none; display: flex; gap: 4px; padding: 8px 10px; }
+        .fb { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 6px 8px; border-radius: 8px; font-size: 12.5px; color: var(--ink-2); }
+        .fb:hover:not(:disabled) { background: var(--hover); }
+        .fb em { font-style: normal; font-family: var(--z-num); color: var(--muted); }
+        .toast { position: absolute; left: 12px; right: 12px; bottom: 54px; z-index: 4; padding: 8px 12px; font-size: 12px; color: var(--toast-ink); background: var(--toast); border-radius: var(--toast-r); opacity: 0; transform: translateY(4px); transition: opacity .16s ease, transform .16s ease; pointer-events: none; }
+        .toast.on { opacity: 1; transform: none; }
+        .toast[data-kind="error"] { background: var(--bad); color: #fff; }
+
+        .sheet-clip { position: absolute; left: 0; right: 0; bottom: 0; top: var(--head-h); overflow: hidden; border-radius: inherit; border-top-left-radius: 0; border-top-right-radius: 0; pointer-events: none; }
+        .sheet { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--sheet); transform: translateY(102%); visibility: hidden; transition: transform .22s cubic-bezier(.2, .8, .2, 1), visibility 0s .22s; pointer-events: auto; }
+        .main[data-sheet="export"] .sheet, .main[data-sheet="img"] .sheet { transform: none; visibility: visible; transition: transform .22s cubic-bezier(.2, .8, .2, 1), visibility 0s; }
+        .sh-head { display: flex; align-items: center; padding: 12px 14px 8px 16px; font-weight: 700; font-size: 13.5px; }
+        [data-v] { display: none; }
+        .main[data-sheet="export"] [data-v="export"], .main[data-sheet="img"] [data-v="img"] { display: block; }
+        .sh-body { flex: 1; min-height: 0; padding: 4px 16px 16px; overflow: auto; scrollbar-width: thin; }
+        .grp + .grp { margin-top: 16px; }
+        .g-h { font-size: 11.5px; color: var(--muted); margin-bottom: 8px; }
+        .row-btn { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 12px; border: 1px solid var(--line); background: transparent; }
+        .row-btn > span { flex: 1; }
+        .row-btn b { display: block; font-size: 13px; }
+        .row-btn small { display: block; font-size: 11.5px; color: var(--muted); }
+        .row-btn svg { flex: none; color: var(--muted); }
+        .fld { display: grid; grid-template-columns: 76px 1fr; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12px; }
+        .fld > span { color: var(--ink-2); }
+        .fld input { width: 100%; height: 30px; margin: 0; padding: 0 9px; font: 12.5px var(--z-sans); color: var(--ink); outline: none; }
+        .seg { display: flex; flex-wrap: wrap; gap: 2px; padding: 2px; }
+        .seg button { flex: 1 1 auto; border: 0; background: none; padding: 3px 6px; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+        .seg button[aria-pressed="true"] { color: var(--ink); }
+        .fld[data-off="1"] { opacity: .45; pointer-events: none; }
+        .sw { width: 34px; height: 20px; border: 0; padding: 0; position: relative; justify-self: start; }
+        .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; transition: transform .15s ease; }
+        .sw[aria-checked="true"]::after { transform: translateX(14px); }
+        .g-note { font-size: 11px; color: var(--muted); margin: 2px 0 12px !important; }
+        .acts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+        .imgs { display: grid; gap: 14px; }
+        .img-item { display: grid; gap: 6px; }
+        .img-item .cap { font-size: 11.5px; color: var(--muted); }
+        .img-item img { display: block; max-width: 100%; max-height: 220px; object-fit: contain; border: 1px solid var(--line); background: #fff; }
+        .img-item .acts { grid-template-columns: 1fr 1fr; }
+
+        /* 成绩面板挂在主面板左边，高度跟主面板一样，题目多时在内部滚动；窄屏时叠在主面板上 */
+        .result { position: absolute; top: 0; bottom: 0; right: calc(100% + 12px); width: 296px; display: flex; flex-direction: column; }
+        .zz[data-result="0"] .result { display: none; }
+        .result.r-enter { animation: zz-in .18s cubic-bezier(.2, .8, .2, 1); }
+        .zz.narrow .result { z-index: 5; right: 0; }
+        .r-head { display: flex; align-items: center; padding: 14px 10px 4px 16px; }
+        .r-title { font-weight: 700; font-size: 13.5px; }
+        .score { position: relative; display: flex; align-items: baseline; gap: 6px; padding: 4px 16px 6px; }
+        .score b { font-family: var(--z-num); }
+        .of { font-size: 12px; color: var(--muted); }
+        .counts { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 0 16px; font-size: 12px; color: var(--ink-2); }
+        .counts .c-bad { color: var(--bad); }
+        .r-note { padding: 6px 16px 10px; font-size: 11px; color: var(--muted); }
+        .tabs { display: flex; gap: 4px; padding: 0 12px 8px; }
+        .tab { border: 0; background: none; padding: 4px 9px; font-size: 12px; color: var(--muted); }
+        .tab em { font-style: normal; font-family: var(--z-num); }
+        .tab[aria-pressed="true"] { color: var(--ink); }
+        .list { flex: 1; min-height: 0; overflow: auto; padding: 0 8px 10px; scrollbar-width: thin; }
+        .list[data-filter="bad"] .row:not([data-s="bad"]):not([data-s="part"]):not([data-s="none"]),
+        .list[data-filter="pending"] .row:not([data-s="pending"]) { display: none; }
+        .list[data-filter="bad"] .sec-h, .list[data-filter="pending"] .sec-h { display: none; }
+        .sec-h { padding: 10px 8px 2px; font-size: 11px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .row { padding: 10px 8px; display: grid; gap: 3px; }
+        .row-top { display: flex; align-items: center; gap: 8px; }
+        .qn { font: 600 12px var(--z-num); color: var(--ink); min-width: 18px; }
+        .qt { font-size: 11px; color: var(--muted); }
+        .pts { margin-left: auto; font: 500 11.5px var(--z-num); color: var(--muted); }
+        .chip { font-size: 10.5px; font-weight: 600; padding: 0 7px; line-height: 18px; }
+        .t { font-size: 12px; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .mine { font-size: 11.5px; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+        .mine b { font-weight: 600; color: var(--ink-2); }
+        .filter-empty { display: none; padding: 16px 8px; font-size: 12px; color: var(--muted); }
+        @media (prefers-reduced-motion: reduce) { .zz.enter .shell, .zz.leave .shell, .result.r-enter { animation-duration: 1ms; } .sheet, .toast { transition: none; } }
+    `;
+
+    const TAPE = `
+        .zz[data-theme="tape"] {
+            --ink: #1b1f27; --ink-2: #3d4350; --muted: #6c7383; --blue: #2f54d4; --tape: rgba(98, 131, 236, .62);
+            --glass: rgba(251, 252, 254, .9); --soft: #eff1f5; --line: rgba(27, 31, 39, .09); --line-strong: rgba(27, 31, 39, .25);
+            --accent: #2f54d4; --alert: #e0484f; --alert-soft: #fde9ea; --warn: #b5711a; --bad: #c43b3b; --good: #1d7547;
+            --hover: rgba(27, 31, 39, .05); --track: #e4e8f0; --sheet: #fbfcfe; --head-h: 58px;
+            --toast: #1b1f27; --toast-ink: #fff; --toast-r: 12px;
+            --z-num: "Segoe UI Variable Display", "Segoe UI", "SF Pro Display", sans-serif;
+            --logo: ${svgUrl(SVG.tape)};
         }
-        injectUIStyles();
-        homeworkExportOptions = readHomeworkExportOptions();
+        [data-theme="tape"] .main, [data-theme="tape"] .result { background: var(--glass); backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2); border-radius: 18px; box-shadow: 0 0 0 1px var(--line), 0 26px 50px -22px rgba(24, 34, 64, .3), 0 2px 6px rgba(24, 34, 64, .05); }
+        [data-theme="tape"] .tape { display: block; position: absolute; z-index: 3; width: 88px; height: 22px; pointer-events: none; background: repeating-linear-gradient(90deg, rgba(255, 255, 255, .16) 0 2px, transparent 2px 6px), var(--tape); clip-path: polygon(0 0, 100% 0, 96% 20%, 100% 40%, 96% 60%, 100% 80%, 96% 100%, 0 100%, 4% 80%, 0 60%, 4% 40%, 0 20%); }
+        [data-theme="tape"] .tape-m { top: -11px; left: calc(50% - 44px); transform: rotate(-3deg); }
+        [data-theme="tape"] .tape-r { top: -10px; left: 30px; width: 70px; transform: rotate(4deg); }
+        [data-theme="tape"] .head { padding-top: 18px; }
+        [data-theme="tape"] .ver { padding: 0 6px; border-radius: 999px; background: var(--soft); }
+        [data-theme="tape"] .meta span { background: var(--soft); border-radius: 999px; padding: 1px 8px; }
+        [data-theme="tape"] .notice { background: var(--soft); border-radius: 12px; padding: 8px 11px; }
+        [data-theme="tape"] .n-tag { color: var(--blue); }
+        [data-theme="tape"] .step-h { font-weight: 600; font-size: 12.5px; }
+        [data-theme="tape"] .no { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: rgba(47, 84, 212, .1); color: var(--blue); font: 600 11px/1 var(--z-num); }
+        [data-theme="tape"] .btn { border-radius: 12px; }
+        [data-theme="tape"] .btn.pri { background: var(--blue); color: #fff; box-shadow: 0 8px 18px -10px rgba(47, 84, 212, .8); }
+        [data-theme="tape"] .btn.pri:hover:not(:disabled) { background: #2648c0; }
+        [data-theme="tape"] .btn.sec { background: var(--ink); color: #fff; }
+        [data-theme="tape"] .btn.sec:hover:not(:disabled) { background: #000; }
+        [data-theme="tape"] .btn.sm, [data-theme="tape"] .g-acts .btn.sec { background: var(--soft); color: var(--ink); }
+        [data-theme="tape"] .btn.sm:hover:not(:disabled), [data-theme="tape"] .g-acts .btn.sec:hover { background: #e4e7ee; }
+        [data-theme="tape"] textarea { background: var(--soft); border: 1px solid transparent; border-radius: 12px; }
+        [data-theme="tape"] textarea:focus { background: #fff; border-color: rgba(47, 84, 212, .5); }
+        [data-theme="tape"] .bubbles { gap: 5px; }
+        [data-theme="tape"] .bubbles i { width: 8px; height: 8px; border-radius: 50%; background: #d8dde7; font-size: 0; transition: background .15s ease; }
+        [data-theme="tape"] .bubbles i.on { background: var(--blue); }
+        [data-theme="tape"] .bubbles i.err { background: var(--bad); }
+        [data-theme="tape"] .row-btn { border: 0; border-radius: 12px; background: var(--soft); }
+        [data-theme="tape"] .row-btn:hover { background: #e4e7ee; }
+        [data-theme="tape"] .fld input { border: 1px solid transparent; border-radius: 9px; background: var(--soft); }
+        [data-theme="tape"] .fld input:focus { background: #fff; border-color: rgba(47, 84, 212, .5); }
+        [data-theme="tape"] .seg { background: var(--soft); border-radius: 10px; }
+        [data-theme="tape"] .seg button { border-radius: 8px; }
+        [data-theme="tape"] .seg button[aria-pressed="true"] { background: #fff; box-shadow: 0 1px 3px rgba(27, 31, 39, .14); }
+        [data-theme="tape"] .sw { border-radius: 10px; background: #d5dae4; }
+        [data-theme="tape"] .sw::after { background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .2); }
+        [data-theme="tape"] .sw[aria-checked="true"] { background: var(--blue); }
+        [data-theme="tape"] .sheet { border-radius: 18px 18px 0 0; box-shadow: 0 -10px 30px -18px rgba(24, 34, 64, .4); }
+        [data-theme="tape"] .r-head { padding-top: 18px; }
+        [data-theme="tape"] .r-score { font-size: 46px; line-height: 1; font-weight: 600; letter-spacing: -.02em; }
+        [data-theme="tape"] .tab { border-radius: 999px; }
+        [data-theme="tape"] .tab[aria-pressed="true"] { background: var(--ink); color: #fff; }
+        [data-theme="tape"] .row { border-radius: 10px; }
+        [data-theme="tape"] .row:hover { background: var(--hover); }
+        [data-theme="tape"] .chip { border-radius: 999px; }
+        [data-theme="tape"] .row[data-s="ok"] .chip { background: #e5f3eb; color: #1d7547; }
+        [data-theme="tape"] .row[data-s="bad"] .chip { background: #fdeaea; color: #c43b3b; }
+        [data-theme="tape"] .row[data-s="part"] .chip { background: #fbf1dc; color: #94650f; }
+        [data-theme="tape"] .row[data-s="pending"] .chip { background: #e8edf8; color: #3b55a8; }
+        [data-theme="tape"] .row[data-s="none"] .chip { background: #eceef2; color: #6c7383; }
+        [data-theme="tape"] .theme-card { border-radius: 14px; }
+        [data-theme="tape"] .trigger { width: 58px; height: 58px; padding: 0; justify-content: center; border-radius: 50%; background: radial-gradient(circle, #fff 0 17px, rgba(255, 255, 255, .5) 17.5px 18.5px, transparent 19px), repeating-radial-gradient(circle, #5d7fec 0 2px, #6a8bf0 2px 4px); box-shadow: 0 14px 28px -12px rgba(47, 84, 212, .6), inset 0 0 0 1px rgba(255, 255, 255, .25); transition: transform .15s ease; }
+        [data-theme="tape"] .trigger:hover { transform: rotate(-8deg); }
+        [data-theme="tape"][data-dragging] .trigger { transform: none; }
+        [data-theme="tape"] .t-mark, [data-theme="tape"] .t-name, [data-theme="tape"] .t-num small { display: none; }
+        [data-theme="tape"] .t-num { font: 700 15px/1 var(--z-num); color: var(--ink); }
+        [data-theme="tape"] .t-dot { top: 2px; right: 2px; box-shadow: 0 0 0 2px #fff; }
+    `;
 
-        const box = document.createElement('div');
-        box.id = "xy-magic-box";
-        box.style.cssText = `
-            position: fixed; z-index: 999999;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            color: #111827;
-            max-width: calc(100vw - 16px);
-        `;
+    const ZHU = `
+        .zz[data-theme="zhu"] {
+            color-scheme: dark;
+            --ink: #e8ecf2; --ink-2: #c3cad6; --muted: #8e9aad; --surf: #1d2737; --deep: #141b27; --zhu: #e2583e; --paper: #f1ede4;
+            --line: rgba(232, 236, 242, .1); --line-strong: rgba(232, 236, 242, .3);
+            --accent: #f1ede4; --alert: #e2583e; --alert-soft: rgba(226, 88, 62, .16); --warn: #e9a46a; --bad: #ef7a62; --good: #9fd3b0;
+            --hover: rgba(232, 236, 242, .06); --track: rgba(232, 236, 242, .1); --sheet: #1d2737; --head-h: 55px;
+            --toast: #f1ede4; --toast-ink: #18202e; --toast-r: 6px;
+            --z-num: "Segoe UI", "SF Pro Text", sans-serif;
+            --z-kai: "KaiTi", "STKaiti", "Kaiti SC", "楷体", serif;
+            --logo: ${svgUrl(SVG.zhu)};
+        }
+        [data-theme="zhu"] .main, [data-theme="zhu"] .result { background: var(--surf); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 32px 60px -26px rgba(8, 12, 20, .7), 0 2px 8px rgba(8, 12, 20, .25); }
+        [data-theme="zhu"] .head { border-bottom: 1px solid var(--line); }
+        [data-theme="zhu"] .brand { font: 400 18px var(--z-kai); letter-spacing: .06em; }
+        [data-theme="zhu"] .ib:hover { color: var(--paper); }
+        [data-theme="zhu"] .task { padding-top: 12px; }
+        [data-theme="zhu"] .paper, [data-theme="zhu"] .g-title { font: 400 24px/1.3 var(--z-kai); margin-top: 2px; }
+        [data-theme="zhu"] .g-title { margin-top: -8px; }
+        [data-theme="zhu"] .meta span + span::before { content: "·"; margin-right: 6px; color: var(--line-strong); }
+        [data-theme="zhu"] .notice { padding: 8px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+        [data-theme="zhu"] .n-tag { font: 400 14px var(--z-kai); color: var(--paper); }
+        [data-theme="zhu"] .n-more { color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-strong); }
+        [data-theme="zhu"] .no { display: none; }
+        [data-theme="zhu"] .cn { display: inline; font-weight: 400; }
+        [data-theme="zhu"] .step-h { font: 400 15.5px var(--z-kai); color: var(--paper); gap: 0; }
+        [data-theme="zhu"] .g-t, [data-theme="zhu"] .g-list .cn { font: 400 15.5px var(--z-kai); color: var(--paper); }
+        [data-theme="zhu"] .btn { border-radius: 6px; }
+        [data-theme="zhu"] .btn.pri { background: var(--paper); color: #18202e; }
+        [data-theme="zhu"] .btn.pri:hover:not(:disabled) { background: #fff; }
+        [data-theme="zhu"] .btn.sec { background: transparent; border-color: rgba(232, 236, 242, .26); color: var(--ink); }
+        [data-theme="zhu"] .btn.sec:hover:not(:disabled) { border-color: rgba(232, 236, 242, .5); background: var(--hover); }
+        [data-theme="zhu"] textarea { background: var(--deep); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); }
+        [data-theme="zhu"] textarea:focus { border-color: rgba(241, 237, 228, .4); }
+        [data-theme="zhu"] textarea::placeholder { color: #5f6b7e; }
+        [data-theme="zhu"] .bubbles { gap: 3px; }
+        [data-theme="zhu"] .bubbles i { width: 10px; height: 10px; border: 1px solid rgba(232, 236, 242, .22); font-size: 0; transition: background .15s ease; }
+        [data-theme="zhu"] .bubbles i.on { background: var(--paper); border-color: var(--paper); }
+        [data-theme="zhu"] .bubbles i.err { background: var(--zhu); border-color: var(--zhu); }
+        [data-theme="zhu"] .foot { border-top: 1px solid var(--line); }
+        [data-theme="zhu"] .row-btn { border: 1px solid var(--line); border-radius: 6px; }
+        [data-theme="zhu"] .row-btn:hover { background: var(--hover); }
+        [data-theme="zhu"] .fld input { border: 1px solid var(--line); border-radius: 5px; background: var(--deep); }
+        [data-theme="zhu"] .seg { border: 1px solid var(--line); border-radius: 6px; }
+        [data-theme="zhu"] .seg button { border-radius: 4px; }
+        [data-theme="zhu"] .seg button[aria-pressed="true"] { background: rgba(241, 237, 228, .12); color: var(--paper); }
+        [data-theme="zhu"] .sw { border-radius: 10px; background: rgba(232, 236, 242, .16); }
+        [data-theme="zhu"] .sw::after { background: var(--muted); }
+        [data-theme="zhu"] .sw[aria-checked="true"] { background: var(--paper); }
+        [data-theme="zhu"] .sw[aria-checked="true"]::after { background: #18202e; }
+        [data-theme="zhu"] .sh-head { font: 400 16px var(--z-kai); border-bottom: 1px solid var(--line); }
+        [data-theme="zhu"] .img-item img { border-radius: 4px; }
+        [data-theme="zhu"] .r-title { font: 400 16px var(--z-kai); }
+        [data-theme="zhu"] .score { padding: 12px 16px 10px 26px; }
+        [data-theme="zhu"] .sc { position: relative; display: inline-block; }
+        [data-theme="zhu"] .ring { display: block; position: absolute; inset: -12px -20px -10px -18px; background: ${svgUrl(SVG.ring)} center / 100% 100% no-repeat; pointer-events: none; }
+        [data-theme="zhu"] .r-score { position: relative; font: 400 56px/1 var(--z-kai); color: var(--zhu); }
+        [data-theme="zhu"] .of { font: 15px var(--z-kai); margin-left: 18px; }
+        [data-theme="zhu"] .tabs { border-bottom: 1px solid var(--line); padding: 0 12px; gap: 14px; }
+        [data-theme="zhu"] .tab { padding: 6px 0; border-bottom: 1.5px solid transparent; margin-bottom: -1px; }
+        [data-theme="zhu"] .tab[aria-pressed="true"] { color: var(--paper); border-bottom-color: var(--paper); }
+        [data-theme="zhu"] .list { padding-top: 4px; }
+        [data-theme="zhu"] .row { grid-template-columns: 26px 1fr; column-gap: 6px; border-bottom: 1px solid var(--line); }
+        [data-theme="zhu"] .row > * { grid-column: 2; }
+        [data-theme="zhu"] .row > .mk { display: block; grid-column: 1; grid-row: 1 / span 4; width: 22px; height: 22px; background: center / contain no-repeat; }
+        [data-theme="zhu"] .row[data-s="ok"] .mk { background-image: ${svgUrl(SVG.check('#e2583e'))}; }
+        [data-theme="zhu"] .row[data-s="part"] .mk { background-image: ${svgUrl(SVG.check('#e9a46a'))}; }
+        [data-theme="zhu"] .row[data-s="bad"] .mk { background-image: ${svgUrl(SVG.cross('#e2583e'))}; }
+        [data-theme="zhu"] .row[data-s="none"] .mk { background-image: ${svgUrl(SVG.cross('#8e9aad'))}; }
+        [data-theme="zhu"] .row[data-s="pending"] .mk { background-image: ${svgUrl(SVG.dashed)}; }
+        [data-theme="zhu"] .chip { display: none; }
+        [data-theme="zhu"] .sec-h { padding: 12px 8px 2px; font: 400 13px var(--z-kai); }
+        [data-theme="zhu"] .theme-card { border-radius: 8px; }
+        [data-theme="zhu"] .trigger { gap: 10px; height: 46px; padding: 0 16px 0 8px; background: var(--surf); border: 1px solid var(--line); border-radius: 23px; color: var(--ink); box-shadow: 0 16px 32px -14px rgba(8, 12, 20, .7); }
+        [data-theme="zhu"] .t-mark { width: 30px; height: 30px; }
+        [data-theme="zhu"] .t-name { font: 400 16px var(--z-kai); letter-spacing: .04em; }
+        [data-theme="zhu"] .t-num { font: 500 12px var(--z-num); color: var(--muted); }
+        [data-theme="zhu"] .t-num small { margin-left: 1px; }
+    `;
 
-        box.innerHTML = `
-            <button id="xy-floating-trigger" type="button" title="点击展开，拖动移动位置">
-                <span class="xy-floating-logo">${renderXyLogoSvg(40)}</span>
-                <span class="xy-floating-copy">
-                    <span class="xy-floating-title">小雅粘粘粘</span>
-                    <span class="xy-floating-status-row">
-                        <span class="xy-floating-dot"></span>
-                        <span id="xy-floating-status">${globalQuestionsData.length > 0 ? `${globalQuestionsData.length} 道题已同步` : '等待同步题目'}</span>
-                    </span>
-                </span>
-                <span class="xy-drag-grip"></span>
-            </button>
-            <div id="xy-panel-shell">
-                <aside id="xy-result-panel" class="xy-panel-surface xy-surface-shimmer">
-                    <div class="xy-result-scroll">
-                        <div class="xy-result-header">
-                            <div>
-                                <div class="xy-result-title">提交结果</div>
-                                <div class="xy-result-subtitle">本次作答</div>
-                            </div>
-                            <button id="xy-result-collapse-btn" class="xy-icon-btn" type="button" title="收起成绩">${renderIconSvg('chevron', 15)}</button>
-                        </div>
-                        <div id="xy-result-content"></div>
-                    </div>
-                </aside>
-                <section id="xy-panel" class="xy-panel-surface xy-surface-shimmer">
-                    <div class="xy-main-scroll">
-                        <div id="xy-panel-drag-handle" class="xy-panel-header">
-                            <div class="xy-brand">
-                                <span class="xy-brand-logo">${renderXyLogoSvg(29)}</span>
-                                <span>
-                                    <span class="xy-title">小雅粘粘粘</span>
-                                    <span class="xy-subtitle">v${SCRIPT_VERSION} · <span id="xy-connection-status">等待连接任务</span></span>
-                                </span>
-                            </div>
-                            <div class="xy-header-actions">
-                                <button id="xy-result-toggle-btn" class="xy-icon-btn" type="button" title="显示或隐藏提交结果">${renderIconSvg('results', 15)}</button>
-                                <button id="xy-collapse-btn" class="xy-icon-btn" type="button" title="收起面板">${renderIconSvg('close', 15)}</button>
-                            </div>
-                        </div>
-                        <div class="xy-notice-strip">
-                            <div class="xy-notice-inline">
-                                <span class="xy-status-dot"></span>
-                                <span class="xy-notice-title">公告</span>
-                                <span id="xy-notice-version-badge"></span>
-                                <span id="xy-notice-body">公告加载中...</span>
-                                <span class="xy-notice-actions">
-                                    <button id="xy-notice-toggle" class="xy-notice-action" type="button">展开</button>
-                                    <button id="xy-notice-refresh" class="xy-notice-action" type="button" title="刷新公告">${renderIconSvg('refresh', 12)}</button>
-                                </span>
-                            </div>
-                            <div id="xy-notice-meta">公告加载中...</div>
-                        </div>
-                        <div class="xy-id-note">题目顺序可能与网页不同，保存时将按底层 ID 精准对应。</div>
-                        <div class="xy-action-grid">
-                            <button id="xy-copy-btn" class="xy-action-btn xy-action-btn-primary" type="button">${renderIconSvg('copy', 15)}<span data-xy-label>复制题目给 AI</span></button>
-                            <button id="xy-pdf-btn" class="xy-action-btn xy-action-btn-secondary" type="button">${renderIconSvg('file', 15)}<span data-xy-label>导出图文 PDF</span></button>
-                        </div>
-                        <button id="xy-homework-drawer-btn" class="xy-action-btn xy-action-btn-secondary xy-homework-entry-btn" type="button" aria-expanded="false">${renderIconSvg('file', 15)}<span data-xy-label>导出作业</span></button>
-                        <div class="xy-pdf-helper">${escapeHTML(PDF_SAVE_TIP)}</div>
-                        <div class="xy-editor-section">
-                            <div class="xy-editor-label-row">
-                                <label class="xy-editor-label" for="xy-ai-input">AI 返回答案</label>
-                                <span class="xy-helper">支持多行简答与匹配题</span>
-                            </div>
-                            <textarea id="xy-ai-input" placeholder="1 => A&#10;2 => B,C&#10;3 => const | let&#10;10 => A:a,d | B:b,c"></textarea>
-                            <button id="xy-submit-btn" class="xy-submit-btn" type="button">${renderIconSvg('save', 15)}<span data-xy-label>保存作答记录</span></button>
-                        </div>
-                        <div id="xy-status">等待题目数据加载...</div>
-                        <div class="xy-footer-status">
-                            <div class="xy-status-inline">
-                                <span class="xy-status-dot"></span>
-                                <span id="xy-question-metric">0 道题已读取</span>
-                                <span class="xy-footer-dot">·</span>
-                                <span id="xy-task-state">等待任务</span>
-                            </div>
-                            <button id="xy-image-drawer-btn" class="xy-notice-action" type="button" aria-expanded="false">${renderIconSvg('image', 12)}<span id="xy-image-metric">0 张图片</span></button>
-                        </div>
-                    </div>
-                    <aside id="xy-image-drawer" class="xy-image-drawer">
-                        <div class="xy-drawer-header">
-                            <div>
-                                <div class="xy-drawer-title">题目图片</div>
-                                <div class="xy-subtitle">预览、复制或提取链接</div>
-                            </div>
-                            <button id="xy-image-drawer-close" class="xy-icon-btn" type="button" title="关闭题目图片">${renderIconSvg('close', 15)}</button>
-                        </div>
-                        <div id="xy-image-list"></div>
-                    </aside>
-                    <aside id="xy-homework-drawer" class="xy-homework-drawer">
-                        <div class="xy-drawer-header">
-                            <div>
-                                <div class="xy-drawer-title">导出作业</div>
-                                <div class="xy-subtitle">纯净题目文档</div>
-                            </div>
-                            <button id="xy-homework-drawer-close" class="xy-icon-btn" type="button" title="关闭作业导出">${renderIconSvg('close', 15)}</button>
-                        </div>
-                        <div class="xy-homework-form">
-                            <div class="xy-homework-field">
-                                <label class="xy-homework-label" for="xy-course-name-input">课程名</label>
-                                <input id="xy-course-name-input" class="xy-homework-input" type="text" value="${escapeHTML(getCurrentCourseName())}" placeholder="可手动填写课程名">
-                            </div>
-                            <div class="xy-homework-field">
-                                <label class="xy-homework-label" for="xy-homework-header-mode">导出头部</label>
-                                <select id="xy-homework-header-mode" class="xy-homework-select">
-                                    <option value="course_homework">课程 + 作业名</option>
-                                    <option value="course">只显示课程名</option>
-                                    <option value="homework">只显示作业名</option>
-                                    <option value="none">无头部</option>
-                                </select>
-                            </div>
-                            <div class="xy-homework-field">
-                                <label class="xy-homework-toggle">
-                                    <input id="xy-homework-answers-toggle" type="checkbox">
-                                    <span>导出正确答案</span>
-                                </label>
-                            </div>
-                            <div class="xy-homework-field">
-                                <label class="xy-homework-label" for="xy-homework-answer-position">答案位置</label>
-                                <select id="xy-homework-answer-position" class="xy-homework-select">
-                                    <option value="inline">题目下方</option>
-                                    <option value="appendix">文末答案区</option>
-                                </select>
-                            </div>
-                            <div id="xy-homework-meta" class="xy-homework-meta">等待题目数据加载...</div>
-                            <div class="xy-homework-actions">
-                                <button id="xy-homework-copy-btn" class="xy-action-btn xy-action-btn-primary" type="button">${renderIconSvg('copy', 15)}<span data-xy-label>复制纯作业文本</span></button>
-                                <button id="xy-homework-pdf-btn" class="xy-action-btn xy-action-btn-secondary" type="button">${renderIconSvg('file', 15)}<span data-xy-label>导出 PDF</span></button>
-                                <button id="xy-homework-doc-btn" class="xy-action-btn xy-action-btn-secondary" type="button">${renderIconSvg('file', 15)}<span data-xy-label>导出 DOC</span></button>
-                            </div>
-                            <div class="xy-homework-export-note">PDF 会渲染 Markdown 与数学公式，适合直接阅读和打印；DOC 与复制文本保留 TeX 公式，避免公式图片化导致排版错乱。</div>
-                        </div>
-                    </aside>
-                </section>
-            </div>
-        `;
+    function template() {
+        return `
+<div class="zz" data-open="0" data-paper="0" data-result="0" data-guide="0">
+  <button class="trigger" type="button" data-act="open">
+    <span class="t-mark"></span><span class="t-name">粘粘粘</span><span class="t-num"></span><i class="t-dot" hidden></i>
+  </button>
+  <div class="shell">
+    <aside class="result" aria-label="提交结果">
+      <i class="tape tape-r"></i>
+      <div class="r-head"><span class="r-title">提交结果</span><span class="sp"></span><button class="ib" type="button" data-act="result" title="收起成绩">${ICON.go}</button></div>
+      <div class="score"><span class="sc"><i class="ring"></i><b class="r-score"></b></span><span class="of"></span></div>
+      <div class="counts"></div>
+      <div class="r-note"></div>
+      <div class="tabs">
+        <button class="tab" type="button" data-act="filter" data-f="all" aria-pressed="true">全部 <em></em></button>
+        <button class="tab" type="button" data-act="filter" data-f="bad" aria-pressed="false">错题 <em></em></button>
+        <button class="tab" type="button" data-act="filter" data-f="pending" aria-pressed="false">待批改 <em></em></button>
+      </div>
+      <div class="list" data-filter="all"></div>
+    </aside>
+    <section class="main" data-sheet="">
+      <i class="tape tape-m"></i>
+      <header class="head">
+        <span class="mark"></span><span class="brand">小雅粘粘粘</span><span class="ver">v${VERSION}</span><span class="sp"></span>
+        <button class="ib" type="button" data-act="result" data-res-btn title="提交结果" hidden>${ICON.score}</button>
+        <button class="ib theme-btn" type="button" data-act="theme">${ICON.theme}</button>
+        <button class="ib" type="button" data-act="close" title="收起">${ICON.min}</button>
+      </header>
+      <div class="guide" data-step="1">
+        <div class="g-page" data-step="1">
+          <p class="g-kicker">初次使用 · 1 / 2</p>
+          <p class="g-title">选一个喜欢的样子</p>
+          <div class="themes">
+            <button class="theme-card" type="button" data-act="pick-theme" data-theme="tape"><span class="tc-art tape-art"></span><b>胶带</b><small>浅色毛玻璃，被一截胶带贴在页面上</small></button>
+            <button class="theme-card" type="button" data-act="pick-theme" data-theme="zhu"><span class="tc-art zhu-art"></span><b>朱批</b><small>蓝黑墨水底色，红笔只用来批改</small></button>
+          </div>
+          <p class="g-hint">以后随时可以点右上角的半圆按钮切换。</p>
+          <button class="btn pri" type="button" data-act="guide-next"><span>下一步</span></button>
+        </div>
+        <div class="g-page" data-step="2">
+          <p class="g-kicker">2 / 2</p>
+          <p class="g-title">三步完成作答</p>
+          <ol class="g-list">
+            <li><b class="no">1</b><b class="cn">一、</b><b class="g-t">复制题目</b><span>打开作业或测验页面，点「复制题目给 AI」，把内容发给任意 AI。</span></li>
+            <li><b class="no">2</b><b class="cn">二、</b><b class="g-t">粘贴答案</b><span>把 AI 的回答整段粘贴到框里，面板会标出识别到哪些题、缺哪些题。</span></li>
+            <li><b class="no">3</b><b class="cn">三、</b><b class="g-t">保存作答</b><span>点「保存作答记录」逐题保存，不会替你交卷；全部成功后自动刷新页面。</span></li>
+          </ol>
+          <ul class="g-tips">
+            <li>交卷以后，左边会显示每题的得分和对错。</li>
+            <li>「导出」里有给 AI 看的图文 PDF，也有不含提示词的纯净作业。</li>
+            <li>按住标题栏或收起后的图标，可以拖到别的位置。</li>
+          </ul>
+          <div class="g-acts"><button class="btn sec" type="button" data-act="guide-back"><span>上一步</span></button><button class="btn pri" type="button" data-act="guide-done"><span>开始使用</span></button></div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="task">
+          <div class="course"></div>
+          <div class="paper"></div>
+          <div class="meta"></div>
+        </div>
+        <p class="empty">打开小雅的作业或测验页面后，这里会显示题目。</p>
+        <div class="notice" data-open="0"><span class="n-tag">公告</span><span class="n-badge" hidden></span><span class="n-txt">正在加载公告…</span><button class="n-more" type="button" data-act="notice" hidden>展开</button></div>
+        <ol class="steps">
+          <li>
+            <div class="step-h"><b class="no">1</b><b class="cn">一、</b>复制题目</div>
+            <button class="btn pri" type="button" data-act="copy">${ICON.copy}<span>复制题目给 AI</span></button>
+            <p class="hint">题号可能和网页上的不同，保存时按题目本身对应，不会错位。</p>
+          </li>
+          <li>
+            <div class="step-h"><b class="no">2</b><b class="cn">二、</b>粘贴答案</div>
+            <textarea spellcheck="false" aria-label="AI 返回的答案" placeholder="1 => A&#10;2 => A,C&#10;3 => const | let&#10;4 => 简答题可以写多行&#10;5 => A:a,d | B:b,c"></textarea>
+            <div class="parse"><span class="p-txt"></span><span class="p-miss"></span></div>
+            <div class="bubbles"></div>
+            <ul class="issues"></ul>
+          </li>
+          <li>
+            <div class="step-h"><b class="no">3</b><b class="cn">三、</b>保存作答</div>
+            <button class="btn sec" type="button" data-act="save"><span>保存作答记录</span></button>
+            <div class="bar"><i></i></div>
+            <p class="s-msg">只保存作答，不会替你交卷。</p>
+          </li>
+        </ol>
+      </div>
+      <footer class="foot">
+        <button class="fb" type="button" data-act="sheet" data-v-open="export">${ICON.out}导出</button>
+        <button class="fb" type="button" data-act="sheet" data-v-open="img">${ICON.img}图片 <em class="img-count"></em></button>
+      </footer>
+      <div class="toast" role="status"></div>
+      <div class="sheet-clip"><div class="sheet">
+        <div class="sh-head"><span data-v="export">导出</span><span data-v="img">题目图片</span><span class="sp"></span><button class="ib" type="button" data-act="sheet-close" title="关闭">${ICON.x}</button></div>
+        <div class="sh-body" data-v="export">
+          <div class="grp">
+            <div class="g-h">给 AI 看</div>
+            <button class="row-btn" type="button" data-act="ai-pdf"><span><b>图文 PDF</b><small>带图片，公式保留 TeX，适合发给能读 PDF 的 AI</small></span>${ICON.go}</button>
+          </div>
+          <div class="grp">
+            <div class="g-h">纯净作业（不含 AI 提示词）</div>
+            <label class="fld"><span>课程名</span><input class="course-input" type="text" placeholder="可以手动填写"></label>
+            <div class="fld"><span>标题</span><div class="seg" data-pref="header"><button type="button" data-act="seg" data-val="both">课程 + 作业</button><button type="button" data-act="seg" data-val="course">仅课程</button><button type="button" data-act="seg" data-val="paper">仅作业</button><button type="button" data-act="seg" data-val="none">不要</button></div></div>
+            <div class="fld"><span>附正确答案</span><button class="sw" type="button" role="switch" data-act="switch" aria-label="附正确答案"></button></div>
+            <div class="fld" data-dep><span>答案位置</span><div class="seg" data-pref="answerAt"><button type="button" data-act="seg" data-val="inline">题目下方</button><button type="button" data-act="seg" data-val="end">文末</button></div></div>
+            <p class="g-note">只附平台公开的标准答案，或已被判为正确的作答。</p>
+            <div class="acts"><button class="btn sec sm" type="button" data-act="hw-text"><span>复制文本</span></button><button class="btn sec sm" type="button" data-act="hw-pdf"><span>PDF</span></button><button class="btn sec sm" type="button" data-act="hw-doc"><span>DOC</span></button></div>
+          </div>
+        </div>
+        <div class="sh-body" data-v="img"><div class="imgs"></div></div>
+      </div></div>
+    </section>
+  </div>
+</div>`;
+    }
 
-        document.body.appendChild(box);
-        applyCollapsedPosition(box);
+    const view = (() => {
+        let root = null;
+        let el = {};
+        let failures = [];
+        let saving = false;
+        let imagesLoaded = false;
+        let shownKey;
+        let guideStep = 0;
+        let toastTimer = null;
+        let closeTimer = null;
+        const $ = selector => root.querySelector(selector);
+        const label = (button, text) => { button.querySelector('span').textContent = text; };
 
-        const trigger = document.getElementById('xy-floating-trigger');
-        trigger.onclick = event => {
-            if (box.dataset.dragMoved === '1') {
-                event.preventDefault();
+        function mount() {
+            const host = document.createElement('div');
+            host.style.cssText = 'all: initial !important';
+            root = host.attachShadow({ mode: 'closed' });
+            root.innerHTML = `<style>${CSS}${TAPE}${ZHU}</style>${template()}`;
+            (document.body || document.documentElement).appendChild(host);
+            el = {
+                zz: $('.zz'), trigger: $('.trigger'), tNum: $('.t-num'), tDot: $('.t-dot'), shell: $('.shell'),
+                main: $('.main'), result: $('.result'), resBtn: $('[data-res-btn]'),
+                course: $('.course'), paperTitle: $('.paper'), meta: $('.meta'),
+                notice: $('.notice'), nTag: $('.n-tag'), nBadge: $('.n-badge'), nTxt: $('.n-txt'), nMore: $('.n-more'),
+                input: $('textarea'), pTxt: $('.p-txt'), pMiss: $('.p-miss'), bubbles: $('.bubbles'), issues: $('.issues'),
+                bar: $('.bar'), barFill: $('.bar i'), sMsg: $('.s-msg'), imgCount: $('.img-count'), imgBtn: $('[data-v-open="img"]'),
+                toast: $('.toast'), courseInput: $('.course-input'), sw: $('.sw'), dep: $('[data-dep]'), imgs: $('.imgs'),
+                score: $('.r-score'), of: $('.of'), counts: $('.counts'), rNote: $('.r-note'), list: $('.list'),
+                themeBtn: $('.theme-btn'), guide: $('.guide'),
+            };
+            guideStep = prefs.theme ? 0 : 1;
+            applyTheme();
+            renderGuide();
+            prefsToControls();
+            bind();
+            renderNotice();
+            renderPaper();
+            place(true);
+            if (!prefs.welcomed) {
+                prefs.welcomed = true;
+                savePrefs();
+                setOpen(true);
+            }
+        }
+
+        function applyTheme() {
+            const theme = prefs.theme || 'tape';
+            const other = theme === 'tape' ? 'zhu' : 'tape';
+            el.zz.dataset.theme = theme;
+            el.themeBtn.title = `换成「${THEMES[other]}」风格`;
+            root.querySelectorAll('.theme-card').forEach(card => card.setAttribute('aria-pressed', String(card.dataset.theme === prefs.theme)));
+        }
+
+        function setTheme(theme) {
+            prefs.theme = theme;
+            savePrefs();
+            applyTheme();
+            renderTrigger();
+        }
+
+        function renderGuide() {
+            el.zz.dataset.guide = guideStep ? '1' : '0';
+            el.guide.dataset.step = guideStep || 1;
+        }
+
+        function prefsToControls() {
+            root.querySelectorAll('.seg').forEach(seg => seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.val === prefs[seg.dataset.pref]))));
+            el.sw.setAttribute('aria-checked', String(prefs.withAnswers));
+            el.dep.dataset.off = prefs.withAnswers ? '0' : '1';
+        }
+
+        function renderTrigger() {
+            el.tNum.innerHTML = paper ? `${paper.questions.length}<small>题</small>` : '—';
+            el.trigger.title = paper ? `${NAME}：已读取 ${paper.questions.length} 道题，点击展开` : `${NAME}：点击展开`;
+            el.tDot.hidden = !(noticeUnread() || hasUpdate() || !prefs.theme);
+        }
+
+        function renderCourse() {
+            if (!root) return;
+            const name = paper ? getCourse(paper.groupId) : '';
+            el.course.textContent = name;
+            if (root.activeElement !== el.courseInput) el.courseInput.value = name;
+        }
+
+        function renderNotice() {
+            if (!root) return;
+            el.nTxt.replaceChildren();
+            const content = notice ? notice.content : '正在加载公告…';
+            content.split(/(https?:\/\/[^\s，。、；）)]+)/).forEach((part, i) => {
+                if (i % 2) el.nTxt.append(Object.assign(document.createElement('a'), { href: part, target: '_blank', rel: 'noopener noreferrer', textContent: part }));
+                else if (part) el.nTxt.append(part);
+            });
+            el.nMore.hidden = !notice || notice.error || !(content.includes('\n') || content.length > 24);
+            el.nBadge.hidden = !hasUpdate();
+            el.nBadge.textContent = hasUpdate() ? `v${notice.version} 可用` : '';
+            el.nTag.classList.toggle('unread', noticeUnread());
+            renderTrigger();
+        }
+
+        function renderPaper() {
+            if (!root) return;
+            const p = paper;
+            const changed = (p?.key ?? null) !== shownKey;
+            const hadResult = !el.resBtn.hidden;
+            shownKey = p?.key ?? null;
+            el.zz.dataset.paper = p ? '1' : '0';
+            renderTrigger();
+            renderCourse();
+            el.paperTitle.textContent = p?.title || '';
+            el.meta.replaceChildren(...(p ? metaChips(p) : []));
+            el.imgCount.textContent = p ? p.images.length : '';
+            el.imgBtn.disabled = !p?.images.length;
+            result(p, changed || !hadResult);
+            if (changed) {
+                el.main.dataset.sheet = '';
+                el.bubbles.replaceChildren(...(p ? p.questions.map(q => Object.assign(document.createElement('i'), { textContent: q.index, title: `第 ${q.index} 题 · ${q.label}` })) : []));
+                el.input.value = '';
+                failures = [];
+                setMsg('只保存作答，不会替你交卷。');
+                el.imgs.replaceChildren();
+                imagesLoaded = false;
+            }
+            check();
+            place(false);
+        }
+
+        function metaChips(p) {
+            const counts = {};
+            p.questions.forEach(q => { counts[q.label] = (counts[q.label] || 0) + 1; });
+            const chip = text => Object.assign(document.createElement('span'), { textContent: text });
+            return [chip(`${p.questions.length} 题`), ...Object.entries(counts).map(([type, n]) => chip(`${type.replace(/题$/, '')} ${n}`))];
+        }
+
+        function result(p, reveal) {
+            const r = p?.result;
+            el.resBtn.hidden = !r;
+            if (!r || reveal) el.zz.dataset.result = r ? '1' : '0';
+            el.list.replaceChildren();
+            if (!r) return;
+            const count = s => r.rows.filter(row => s.includes(row.state)).length;
+            const wrong = count(['bad', 'none']);
+            const part = count(['part']);
+            const pending = count(['pending']);
+            el.score.textContent = r.score ?? '-';
+            el.of.textContent = `/ ${r.total ?? '-'} 分`;
+            el.counts.innerHTML = `<span>${count(['ok'])} 正确</span><span class="c-bad">${wrong} 错误</span>${part ? `<span>${part} 部分得分</span>` : ''}<span>${pending} 待批改</span>`;
+            el.rNote.textContent = p.showAnswer ? '老师已公开标准答案。' : '老师没有公开标准答案，这里只显示得分和对错。';
+            const tabs = root.querySelectorAll('.tab em');
+            tabs[0].textContent = r.rows.length;
+            tabs[1].textContent = wrong + part;
+            tabs[2].textContent = pending;
+            const html = p.sections.map(section => {
+                const head = section.title ? `<div class="sec-h">${esc(section.title.text || '题组')}</div>` : '';
+                return head + section.questions.map(q => {
+                    const row = r.rows[q.index - 1];
+                    return `<div class="row" data-s="${row.state}">
+                        <i class="mk"></i>
+                        <div class="row-top"><span class="qn">${pad2(q.index)}</span><span class="qt">${esc(q.label)}</span><span class="chip">${STATE_LABEL[row.state]}</span><span class="pts">${row.score ?? '-'} / ${q.score ?? '-'}</span></div>
+                        <div class="t">${esc(q.title.text)}</div>
+                        <div class="mine"><b>我的答案</b>　${esc(row.mine || '未作答')}</div>
+                        ${row.standard ? `<div class="mine"><b>标准答案</b>　${esc(row.standard)}</div>` : ''}
+                    </div>`;
+                }).join('');
+            }).join('');
+            el.list.innerHTML = html + '<p class="filter-empty">没有这类题目。</p>';
+            setFilter(reveal ? 'all' : el.list.dataset.filter);
+        }
+
+        function setFilter(filter) {
+            el.list.dataset.filter = filter;
+            root.querySelectorAll('.tab').forEach(tab => tab.setAttribute('aria-pressed', String(tab.dataset.f === filter)));
+            const visible = filter === 'all' || el.list.querySelector(filter === 'bad' ? '.row[data-s="bad"], .row[data-s="part"], .row[data-s="none"]' : '.row[data-s="pending"]');
+            el.list.querySelector('.filter-empty').style.display = visible ? 'none' : 'block';
+        }
+
+        function check() {
+            const p = paper;
+            if (!p) return null;
+            const c = checkAnswers(p, el.input.value);
+            [...el.bubbles.children].forEach((b, i) => {
+                b.classList.toggle('on', c.ok.has(i + 1));
+                b.classList.toggle('err', c.bad.has(i + 1));
+            });
+            const answerable = p.questions.filter(q => q.type !== 7).length;
+            el.pTxt.textContent = el.input.value.trim() ? `已识别 ${c.ok.size} / ${answerable} 题` : `共 ${answerable} 题要作答`;
+            el.pMiss.textContent = !el.input.value.trim() ? '' : c.missing.length ? `缺 ${c.missing.slice(0, 6).join('、')}${c.missing.length > 6 ? ` 等 ${c.missing.length} 题` : ''}` : '全部识别';
+            const problems = [...c.issues, ...failures].sort((a, b) => a.n - b.n);
+            el.issues.replaceChildren(...problems.slice(0, 4).map(i => Object.assign(document.createElement('li'), { textContent: `第 ${i.n} 题：${i.message}` })));
+            if (problems.length > 4) el.issues.append(Object.assign(document.createElement('li'), { textContent: `还有 ${problems.length - 4} 题有问题` }));
+            return c;
+        }
+
+        function images() {
+            if (imagesLoaded || !paper) return;
+            imagesLoaded = true;
+            el.imgs.replaceChildren(...paper.images.map((img, i) => {
+                const item = document.createElement('div');
+                item.className = 'img-item';
+                item.innerHTML = `<span class="cap">${esc(img.label)}</span><img alt="${esc(img.label)}"><div class="acts"><button class="btn sec sm" type="button" data-act="img-copy" data-i="${i}"><span>复制图片</span></button><button class="btn sec sm" type="button" data-act="img-link" data-i="${i}"><span>复制链接</span></button></div>`;
+                item.querySelector('img').src = img.src;
+                return item;
+            }));
+        }
+
+        function toast(message, kind = 'ok') {
+            el.toast.textContent = message;
+            el.toast.dataset.kind = kind;
+            el.toast.classList.add('on');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => el.toast.classList.remove('on'), kind === 'error' ? 4200 : 2400);
+        }
+
+        function place(full) {
+            if (!root) return;
+            const open = el.zz.dataset.open === '1';
+            const both = open && el.zz.dataset.result === '1' && !guideStep;
+            if (full) el.main.style.maxHeight = '';
+            const bothWidth = el.main.offsetWidth + el.result.offsetWidth + 12;
+            const narrow = both && innerWidth < bothWidth + MARGIN * 2;
+            el.zz.classList.toggle('narrow', narrow);
+            const box = open ? el.main : el.trigger;
+            const width = both && !narrow ? bothWidth : box.offsetWidth;
+            const right = Math.min(Math.max(prefs.right, MARGIN), Math.max(MARGIN, innerWidth - width - MARGIN));
+            el.zz.style.right = `${right}px`;
+            if (!full && open && el.zz.style.top) return;
+            const top = Math.min(Math.max(prefs.top, MARGIN), Math.max(MARGIN, innerHeight - box.offsetHeight - MARGIN));
+            el.zz.style.top = `${top}px`;
+            if (open) el.main.style.maxHeight = `${innerHeight - top - MARGIN}px`;
+        }
+
+        function setOpen(open) {
+            clearTimeout(closeTimer);
+            if (open) {
+                el.zz.classList.remove('leave');
+                el.zz.dataset.open = '1';
+                el.zz.classList.add('enter');
+                place(true);
+                if (noticeUnread()) { prefs.seen = noticeKey(); savePrefs(); renderTrigger(); }
+            } else {
+                el.main.dataset.sheet = '';
+                el.zz.classList.remove('enter');
+                el.zz.classList.add('leave');
+                closeTimer = setTimeout(() => {
+                    el.zz.classList.remove('leave');
+                    el.zz.dataset.open = '0';
+                    el.nTag.classList.toggle('unread', noticeUnread());
+                    place(true);
+                }, 140);
+            }
+        }
+
+        function drag(handle, isTrigger) {
+            handle.addEventListener('pointerdown', event => {
+                if (event.button !== 0 || (!isTrigger && event.target.closest('button'))) return;
+                const rect = el.zz.getBoundingClientRect();
+                const start = { x: event.clientX, y: event.clientY, right: innerWidth - rect.right, top: rect.top };
+                let moved = false;
+                handle.setPointerCapture(event.pointerId);
+                const move = e => {
+                    const dx = e.clientX - start.x;
+                    const dy = e.clientY - start.y;
+                    if (!moved && Math.hypot(dx, dy) < 4) return;
+                    moved = true;
+                    el.zz.dataset.dragging = '1';
+                    prefs.right = start.right - dx;
+                    prefs.top = start.top + dy;
+                    place(true);
+                };
+                const up = () => {
+                    handle.removeEventListener('pointermove', move);
+                    handle.removeEventListener('pointerup', up);
+                    handle.removeEventListener('pointercancel', up);
+                    delete el.zz.dataset.dragging;
+                    if (!moved) return;
+                    const r = el.zz.getBoundingClientRect();
+                    prefs.right = innerWidth - r.right;
+                    prefs.top = r.top;
+                    savePrefs();
+                    if (isTrigger) handle.addEventListener('click', e => e.stopImmediatePropagation(), { capture: true, once: true });
+                };
+                handle.addEventListener('pointermove', move);
+                handle.addEventListener('pointerup', up);
+                handle.addEventListener('pointercancel', up);
+            });
+        }
+
+        async function busy(button, text, task) {
+            const original = button.querySelector('span').textContent;
+            button.disabled = true;
+            label(button, text);
+            try { await task(); } catch (e) { toast(e.message, 'error'); console.error(`[${NAME}]`, e); }
+            finally { button.disabled = false; label(button, original); }
+        }
+
+        async function save(button) {
+            const p = paper;
+            const c = check();
+            if (!c.jobs.length) {
+                setMsg(c.issues.length ? '答案格式有误，按上面的提示改一下再保存。' : '没有识别到答案。每题要以「题号 =>」开头。', 'error');
                 return;
             }
-            toggleUIPanel(true);
-        };
-        document.getElementById('xy-collapse-btn').onclick = () => toggleUIPanel(false);
-        document.getElementById('xy-result-collapse-btn').onclick = () => toggleResultPanel(false);
-        document.getElementById('xy-result-toggle-btn').onclick = () => toggleResultPanel(!resultPanelVisible);
-        document.getElementById('xy-notice-toggle').onclick = toggleNoticeBody;
-        document.getElementById('xy-notice-refresh').onclick = () => runNoticeCheck(true);
-        document.getElementById('xy-image-drawer-btn').onclick = () => toggleImageDrawer(!imageDrawerVisible);
-        document.getElementById('xy-image-drawer-close').onclick = () => toggleImageDrawer(false);
-        document.getElementById('xy-homework-drawer-btn').onclick = () => toggleHomeworkDrawer(!homeworkDrawerVisible);
-        document.getElementById('xy-homework-drawer-close').onclick = () => toggleHomeworkDrawer(false);
-        makeUIPanelDraggable(box, [trigger, document.getElementById('xy-panel-drag-handle')]);
-        if (!createUIPanel.resizeBound) {
-            createUIPanel.resizeBound = true;
-            window.addEventListener('resize', () => {
-                applyPanelLayout();
-                clampUIPanelToViewport();
+            saving = true;
+            button.disabled = true;
+            el.bar.classList.add('on');
+            el.barFill.style.width = '0';
+            setMsg('正在读取作答记录…');
+            let reloading = false;
+            try {
+                failures = await saveAnswers(p, c.jobs, (done, total) => {
+                    label(button, `正在保存 ${done} / ${total}`);
+                    el.barFill.style.width = `${done / total * 100}%`;
+                });
+                const saved = c.jobs.length - failures.length;
+                check();
+                if (!failures.length && !c.issues.length) {
+                    reloading = true;
+                    label(button, '已保存');
+                    setMsg(`已保存 ${saved} 题，正在刷新页面…`, 'ok');
+                    setTimeout(() => location.reload(), 1200);
+                    return;
+                }
+                const parts = [`已保存 ${saved} 题`];
+                if (failures.length) parts.push(`${failures.length} 题保存失败`);
+                if (c.issues.length) parts.push(`${c.issues.length} 题格式有误没有保存`);
+                setMsg(`${parts.join('，')}。改好后再保存一次即可，页面没有刷新。`, 'warn');
+            } catch (e) {
+                setMsg(e.message, 'error');
+            } finally {
+                saving = false;
+                el.bar.classList.remove('on');
+                if (!reloading) {
+                    button.disabled = false;
+                    label(button, '保存作答记录');
+                }
+            }
+        }
+
+        function setMsg(text, kind) {
+            el.sMsg.textContent = text;
+            if (kind) el.sMsg.dataset.kind = kind;
+            else delete el.sMsg.dataset.kind;
+        }
+
+        function onClick(event) {
+            const t = event.target.closest('[data-act]');
+            if (!t) return;
+            const p = paper;
+            switch (t.dataset.act) {
+                case 'open': setOpen(true); break;
+                case 'close': setOpen(false); break;
+                case 'theme': setTheme(el.zz.dataset.theme === 'tape' ? 'zhu' : 'tape'); break;
+                case 'pick-theme': setTheme(t.dataset.theme); break;
+                case 'guide-next':
+                    if (!prefs.theme) setTheme('tape');
+                    guideStep = 2;
+                    renderGuide();
+                    break;
+                case 'guide-back': guideStep = 1; renderGuide(); break;
+                case 'guide-done':
+                    guideStep = 0;
+                    renderGuide();
+                    place(true);
+                    break;
+                case 'result': {
+                    if (!p?.result) return;
+                    const show = el.zz.dataset.result !== '1';
+                    el.zz.dataset.result = show ? '1' : '0';
+                    if (show) { el.result.classList.remove('r-enter'); void el.result.offsetWidth; el.result.classList.add('r-enter'); }
+                    place(true);
+                    break;
+                }
+                case 'filter': setFilter(t.dataset.f); break;
+                case 'notice': {
+                    const open = el.notice.dataset.open !== '1';
+                    el.notice.dataset.open = open ? '1' : '0';
+                    t.textContent = open ? '收起' : '展开';
+                    break;
+                }
+                case 'sheet':
+                    el.main.dataset.sheet = el.main.dataset.sheet === t.dataset.vOpen ? '' : t.dataset.vOpen;
+                    if (el.main.dataset.sheet === 'img') images();
+                    break;
+                case 'sheet-close': el.main.dataset.sheet = ''; break;
+                case 'seg': {
+                    const seg = t.parentElement;
+                    prefs[seg.dataset.pref] = t.dataset.val;
+                    savePrefs();
+                    prefsToControls();
+                    break;
+                }
+                case 'switch':
+                    prefs.withAnswers = !prefs.withAnswers;
+                    savePrefs();
+                    prefsToControls();
+                    break;
+                case 'copy':
+                    GM_setClipboard(buildPrompt(p), 'text');
+                    label(t, `已复制 ${p.questions.length} 题`);
+                    clearTimeout(t.timer);
+                    t.timer = setTimeout(() => label(t, '复制题目给 AI'), 1600);
+                    break;
+                case 'save': if (!saving) save(t); break;
+                case 'ai-pdf': busy(t, '正在生成…', () => printDocument('ai')); break;
+                case 'hw-pdf': busy(t, '生成中…', () => printDocument('homework')); break;
+                case 'hw-doc': busy(t, '生成中…', async () => { await downloadDoc(); toast('已下载 DOC，用 Word 或 WPS 打开'); }); break;
+                case 'hw-text':
+                    GM_setClipboard(buildHomeworkText(p), 'text');
+                    toast('已复制纯作业文本');
+                    break;
+                case 'img-copy': {
+                    const img = p.images[t.dataset.i];
+                    busy(t, '复制中…', async () => {
+                        try {
+                            await copyImage(img.src);
+                            toast('图片已复制');
+                        } catch (e) {
+                            GM_setClipboard(img.src, 'text');
+                            toast('浏览器不让复制图片，已改为复制图片链接', 'error');
+                        }
+                    });
+                    break;
+                }
+                case 'img-link':
+                    GM_setClipboard(p.images[t.dataset.i].src, 'text');
+                    toast('图片链接已复制');
+                    break;
+            }
+        }
+
+        function bind() {
+            root.addEventListener('click', onClick);
+            el.input.addEventListener('input', () => { failures = []; check(); });
+            el.courseInput.addEventListener('input', () => { const p = paper; if (p) setCourse(p.groupId, el.courseInput.value); });
+            el.zz.addEventListener('animationend', event => {
+                if (event.animationName !== 'zz-in') return;
+                el.zz.classList.remove('enter');
+                el.result.classList.remove('r-enter');
             });
+            drag(el.trigger, true);
+            drag($('.head'), false);
+            addEventListener('resize', () => place(true));
+            new ResizeObserver(() => place(false)).observe(el.shell);
         }
 
-        const copyBtn = document.getElementById('xy-copy-btn');
-        copyBtn.onclick = function() {
-            globalExtractedText = buildAiPromptText();
-            GM_setClipboard(globalExtractedText, "text");
-            setButtonLabel(copyBtn, "已复制题目模板");
-            setUIStatus(`${SCRIPT_NAME} 已复制 ${globalQuestionsData.length} 道题。`);
-            setTimeout(() => setButtonLabel(copyBtn, "复制题目给 AI"), 2000);
-        };
+        return { mount, paper: renderPaper, course: renderCourse, notice: renderNotice };
+    })();
 
-        const courseInput = document.getElementById('xy-course-name-input');
-        courseInput.oninput = () => {
-            const courseName = courseInput.value.trim();
-            globalCourseMeta = { ...globalCourseMeta, groupId: globalGroupId, courseName, error: '' };
-            if (courseName) cacheCourseName(courseName);
-            globalExtractedText = buildAiPromptText();
-            updateHomeworkDrawerUI();
-        };
-
-        document.getElementById('xy-homework-header-mode').onchange = event => {
-            homeworkExportOptions.headerMode = event.target.value;
-            saveHomeworkExportOptions();
-            updateHomeworkDrawerUI();
-        };
-        document.getElementById('xy-homework-answers-toggle').onchange = event => {
-            homeworkExportOptions.includeAnswers = event.target.checked;
-            saveHomeworkExportOptions();
-            updateHomeworkDrawerUI();
-        };
-        document.getElementById('xy-homework-answer-position').onchange = event => {
-            homeworkExportOptions.answerPosition = event.target.value;
-            saveHomeworkExportOptions();
-            updateHomeworkDrawerUI();
-        };
-
-        document.getElementById('xy-homework-copy-btn').onclick = copyHomeworkText;
-
-        const homeworkPdfBtn = document.getElementById('xy-homework-pdf-btn');
-        homeworkPdfBtn.onclick = async function() {
-            homeworkPdfBtn.disabled = true;
-            setButtonLabel(homeworkPdfBtn, "正在导出...");
-            try {
-                await exportHomeworkAsPdf();
-            } catch (error) {
-                console.error(`[${SCRIPT_NAME}] 作业 PDF 导出失败`, error);
-                setUIStatus(`作业 PDF 导出失败：${error?.message || error}`, true);
-            } finally {
-                homeworkPdfBtn.disabled = false;
-                setButtonLabel(homeworkPdfBtn, "导出 PDF");
-            }
-        };
-
-        const homeworkDocBtn = document.getElementById('xy-homework-doc-btn');
-        homeworkDocBtn.onclick = async function() {
-            homeworkDocBtn.disabled = true;
-            setButtonLabel(homeworkDocBtn, "正在导出...");
-            try {
-                await exportHomeworkAsDoc();
-            } catch (error) {
-                console.error(`[${SCRIPT_NAME}] 作业 DOC 导出失败`, error);
-                setUIStatus(`作业 DOC 导出失败：${error?.message || error}`, true);
-            } finally {
-                homeworkDocBtn.disabled = false;
-                setButtonLabel(homeworkDocBtn, "导出 DOC");
-            }
-        };
-
-        const pdfBtn = document.getElementById('xy-pdf-btn');
-        pdfBtn.onclick = async function() {
-            pdfBtn.disabled = true;
-            setButtonLabel(pdfBtn, "正在导出 PDF...");
-            try {
-                await exportPaperAsPdf();
-            } catch (error) {
-                console.error(`[${SCRIPT_NAME}] PDF 导出失败`, error);
-                setUIStatus(`PDF 导出失败：${error?.message || error}`, true);
-            } finally {
-                pdfBtn.disabled = false;
-                setButtonLabel(pdfBtn, "导出图文 PDF");
-            }
-        };
-
-        const submitBtn = document.getElementById('xy-submit-btn');
-        submitBtn.onclick = async function() {
-            const aiText = document.getElementById('xy-ai-input').value;
-            if(!aiText.trim()) { alert("请先粘贴 AI 返回的答案。"); return; }
-
-            submitBtn.disabled = true;
-            setButtonLabel(submitBtn, "正在保存作答...");
-            setUIStatus(`${SCRIPT_NAME} 正在保存作答记录...`);
-            try {
-                await executeFill(aiText);
-            } finally {
-                submitBtn.disabled = false;
-                setButtonLabel(submitBtn, "保存作答记录");
-            }
-        };
-
-        updateUIPanelData();
-        toggleUIPanel(false);
-    }
-
-    function mountUIPanelWhenReady() {
-        if (document.body) {
-            createUIPanel();
-            return;
-        }
-        setTimeout(mountUIPanelWhenReady, 100);
-    }
-
-    installRouteWatcher();
-    mountUIPanelWhenReady();
-    initializeNoticeSystem();
-
+    hookRequests();
+    watchRoute();
+    dropLegacyKeys();
+    loadNotice();
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', view.mount, { once: true });
+    else view.mount();
 })();
