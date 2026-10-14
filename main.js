@@ -76,8 +76,17 @@
     }
 
     function getToken() {
-        const match = document.cookie.match(/(?:^|;\s*)prd-access-token=([^;]*)/);
-        return match ? decodeURIComponent(match[1]) : '';
+        let fallback = '';
+        for (const cookie of document.cookie.split(/;\s*/)) {
+            const i = cookie.indexOf('=');
+            if (i < 0) continue;
+            const name = cookie.slice(0, i);
+            let value = cookie.slice(i + 1);
+            try { value = decodeURIComponent(value); } catch (e) { }
+            if (name === 'prd-access-token') return value;
+            if (!fallback && name.endsWith('access-token')) fallback = value;
+        }
+        return fallback;
     }
 
     async function api(path, init = {}) {
