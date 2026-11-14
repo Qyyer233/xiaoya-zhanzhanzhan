@@ -8,7 +8,7 @@
 - **看成绩**：交卷后列出每道题的得分和对错，老师公开答案时一并显示。
 - **总复习**：把一门课的作业、练习、测验一次导出成 PDF 或 DOC，带目录，考前直接翻。（v2.1 新增）
 
-作者：[Qy](https://qyovo.tech/)　·　源码：[GitHub](https://github.com/Qyyer233/xiaoya-zhanzhanzhan)（Apache-2.0 许可）
+作者：[Qy](https://qyovo.com/)　·　源码：[GitHub](https://github.com/Qyyer233/xiaoya-zhanzhanzhan)（Apache-2.0 许可）
 
 ## 安装
 
