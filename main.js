@@ -2,8 +2,8 @@
 // @name         小雅粘粘粘
 // @namespace    http://tampermonkey.net/
 // @author       Qy
-// @version      2.1
-// @description  小雅平台的答题和复习助手：把题目整理给 AI、逐题保存答案、查看每题得分，整门课的作业一次导出成 PDF 或 DOC
+// @version      2.2
+// @description  小雅平台的答题和复习助手：把题目整理给 AI、逐题保存答案、查看每题得分，整门课的作业一次导出成 PDF 或 DOC，不许下载的课件也能下载
 // @match        *://*.ai-augmented.com/*
 // @require      https://scriptcat.org/lib/6742/14.1.0/markdown-it.js?sha384-wLhprpjsmjc/XYIcF+LpMxd8yS1gss6jhevOp6F6zhiIoFK6AmHtm4bGKtehTani
 // @resource     mathjax https://scriptcat.org/lib/6741/3.2.2/MathJax%203.2.2.js?sha384-4kE/rQ11E8xT9QgrCBTyvenkuPfQo8rXYQvJZuMgxyPOoUfpatjQPlgdv6V5yhUK
@@ -24,7 +24,7 @@
     'use strict';
 
     const NAME = '小雅粘粘粘';
-    const VERSION = '2.1';
+    const VERSION = '2.2';
     const NOTICE_API = 'https://xiaoya.qyovo.com/notice';
     const NOTICE_CHANNEL = 'zhanzhanzhan';
     const PAPER_API = '/api/jx-iresource/survey/course/queryStuPaper/v2';
@@ -32,6 +32,7 @@
     const RESOURCES_API = '/api/jx-iresource/resource/queryCourseResources/v2?group_id=';
     const COURSES_API = '/api/jx-iresource/group/student/groups?time_flag=1';
     const WATCHED_API = /queryStuPaper\/v2|group\/queryGroup\//;
+    const DOWNLOAD_API = /\/resource\/(queryCourseResources\/v2|queryResource\/v3)\?/;
     const TYPE = { 1: '单选题', 2: '多选题', 4: '填空题', 5: '判断题', 6: '简答题', 7: '附件题', 9: '题组', 10: '编程题', 11: '排序题', 13: '匹配题' };
     const TASK_KIND = { 2: '作业', 3: '练习', 4: '测验' };
     const PRINT_TIP = '在打印窗口里选择「另存为 PDF」，文字可以复制和搜索。';
@@ -43,7 +44,7 @@
     let notice = null;
     const courses = {};
 
-    const prefs = Object.assign({ theme: '', welcomed: false, right: 24, top: 96, header: 'both', withAnswers: false, answerAt: 'inline', pack: 'one', fmt: 'pdf', seen: '' }, GM_getValue('prefs', {}));
+    const prefs = Object.assign({ theme: '', welcomed: false, right: 24, top: 96, header: 'both', withAnswers: false, answerAt: 'inline', pack: 'one', fmt: 'pdf', download: true, seen: '' }, GM_getValue('prefs', {}));
     const savePrefs = () => GM_setValue('prefs', prefs);
 
     function dropLegacyKeys() {
@@ -667,11 +668,45 @@
         view.paper();
     }
 
+    function wantDownload(url) {
+        if (prefs.download) return true;
+        log('课件', new URL(url, location.origin).pathname, '设置里的「解除下载限制」关着，没改');
+        return false;
+    }
+
+    function allowDownload(url, text) {
+        let n = 0;
+        const out = text.replace(/("download"\s*:\s*)1(?=\s*[,}])/g, (m, key) => (n++, key + '2'));
+        const at = new URL(url, location.origin);
+        log('课件', at.pathname + at.search, n ? `${n} 处 download 从 1（不许下载）改成了 2` : '没有不许下载的');
+        return out;
+    }
+
     function hookRequests() {
         const urls = new WeakMap();
         const proto = page.XMLHttpRequest.prototype;
         const rawOpen = proto.open;
         const rawSend = proto.send;
+        const rawText = Object.getOwnPropertyDescriptor(proto, 'responseText').get;
+        const patchXhr = (xhr, url) => {
+            const type = xhr.responseType;
+            if (type && type !== 'text' && type !== 'blob') {
+                log('课件', '没改：返回类型是', type);
+                return;
+            }
+            xhr.responseType = '';
+            let text = null;
+            const read = () => {
+                if (xhr.readyState !== 4) return rawText.call(xhr);
+                if (text === null) text = allowDownload(url, rawText.call(xhr));
+                return text;
+            };
+            Object.defineProperties(xhr, {
+                responseType: { get: () => type },
+                responseText: { get: read },
+                response: { get: () => type !== 'blob' ? read() : xhr.readyState === 4 ? new page.Blob([read()], { type: 'application/json' }) : null },
+            });
+        };
         const readXhr = async xhr => {
             if (xhr.responseType === 'json') return xhr.response;
             if (xhr.responseType === 'blob') return JSON.parse(await xhr.response.text());
@@ -684,7 +719,8 @@
         };
         proto.send = function () {
             const url = urls.get(this);
-            if (url && WATCHED_API.test(url)) {
+            if (url && DOWNLOAD_API.test(url) && wantDownload(url)) patchXhr(this, url);
+            else if (url && WATCHED_API.test(url)) {
                 this.addEventListener('load', () => readXhr(this).then(json => onCaptured(url, json), e => {
                     log('旁听', '解析失败', url.split('?')[0], `responseType=${this.responseType || '空'}`, e);
                     console.warn(`[${NAME}] 解析接口数据失败`, e);
@@ -695,6 +731,9 @@
         page.fetch = function (input) {
             const promise = rawFetch.apply(this, arguments);
             const url = typeof input === 'string' ? input : (input?.url || String(input));
+            if (DOWNLOAD_API.test(url) && wantDownload(url)) {
+                return promise.then(res => res.clone().text().then(text => new page.Response(allowDownload(url, text), { status: res.status, statusText: res.statusText, headers: res.headers })));
+            }
             if (WATCHED_API.test(url)) promise.then(res => res.clone().json()).then(json => onCaptured(url, json), e => log('旁听', '解析失败', url.split('?')[0], e));
             return promise;
         };
@@ -1199,6 +1238,7 @@
         x: '<svg class="i" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg>',
         go: '<svg class="i" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>',
         theme: '<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>',
+        set: '<svg class="i" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>',
     };
 
     const SVG = {
@@ -1241,7 +1281,7 @@
         /* 首次引导：选风格 → 用法。引导时只显示引导内容 */
         .guide { display: none; flex: 1 1 auto; min-height: 0; padding: 4px 16px 18px; overflow: auto; }
         .zz[data-guide="1"] .guide { display: block; }
-        .zz[data-guide="1"] .modes, .zz[data-guide="1"] .body, .zz[data-guide="1"] .batch, .zz[data-guide="1"] .foot, .zz[data-guide="1"] .result, .zz[data-guide="1"] [data-res-btn] { display: none !important; }
+        .zz[data-guide="1"] .modes, .zz[data-guide="1"] .body, .zz[data-guide="1"] .batch, .zz[data-guide="1"] .foot, .zz[data-guide="1"] .result, .zz[data-guide="1"] [data-res-btn], .zz[data-guide="1"] .set-btn { display: none !important; }
         .g-page { display: none; }
         .guide[data-step="1"] .g-page[data-step="1"], .guide[data-step="2"] .g-page[data-step="2"] { display: grid; gap: 14px; }
         .g-kicker { font-size: 11.5px; color: var(--muted); }
@@ -1265,7 +1305,7 @@
         .g-tips { margin: 0; padding: 12px 0 0 16px; border-top: 1px solid var(--line); display: grid; gap: 4px; font-size: 11.5px; color: var(--muted); }
         .g-acts { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; }
 
-        .main { position: relative; width: 372px; max-height: calc(100vh - ${MARGIN * 2}px); display: flex; flex-direction: column; }
+        .main { position: relative; width: 372px; max-height: calc(100vh - ${MARGIN * 2}px); display: flex; flex-direction: column; transition: min-height .22s cubic-bezier(.2, .8, .2, 1); }
         .head { display: flex; align-items: center; gap: 9px; padding: 14px 14px 12px 16px; cursor: move; user-select: none; touch-action: none; }
         .mark { width: 22px; height: 22px; }
         .brand { font-weight: 700; font-size: 14px; }
@@ -1274,6 +1314,8 @@
         .sp { flex: 1; }
         .ib { width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 0; background: transparent; border-radius: 8px; color: var(--muted); }
         .ib:hover { background: var(--hover); color: var(--ink); }
+        /* 键盘焦点框（按过键才出现，比如截图的快捷键）：小图标按钮上贴着按钮画，不另外框出一圈 */
+        .ib:focus-visible { outline-offset: 0; }
         svg.i { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
         .body { flex: 1 1 auto; min-height: 0; overflow: auto; scrollbar-width: thin; }
         .task { padding: 4px 16px 12px; }
@@ -1319,12 +1361,23 @@
         .toast.on { opacity: 1; transform: none; }
         .toast[data-kind="error"] { background: var(--bad); color: #fff; }
 
-        .sheet-clip { position: absolute; left: 0; right: 0; bottom: 0; top: var(--head-h); overflow: hidden; border-radius: inherit; border-top-left-radius: 0; border-top-right-radius: 0; pointer-events: none; }
+        /* z-index 要压住总复习吸顶的章节标题（1），又在提示（4）下面 */
+        .sheet-clip { position: absolute; z-index: 2; left: 0; right: 0; bottom: 0; top: var(--head-h); overflow: hidden; border-radius: inherit; border-top-left-radius: 0; border-top-right-radius: 0; pointer-events: none; }
         .sheet { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--sheet); transform: translateY(102%); visibility: hidden; transition: transform .22s cubic-bezier(.2, .8, .2, 1), visibility 0s .22s; pointer-events: auto; }
-        .main[data-sheet="export"] .sheet, .main[data-sheet="img"] .sheet { transform: none; visibility: visible; transition: transform .22s cubic-bezier(.2, .8, .2, 1), visibility 0s; }
+        .main[data-sheet="export"] .sheet, .main[data-sheet="img"] .sheet, .main[data-sheet="set"] .sheet { transform: none; visibility: visible; transition: transform .22s cubic-bezier(.2, .8, .2, 1), visibility 0s; }
         .sh-head { display: flex; align-items: center; padding: 12px 14px 8px 16px; font-weight: 700; font-size: 13.5px; }
         [data-v] { display: none; }
-        .main[data-sheet="export"] [data-v="export"], .main[data-sheet="img"] [data-v="img"] { display: block; }
+        .main[data-sheet="export"] [data-v="export"], .main[data-sheet="img"] [data-v="img"], .main[data-sheet="set"] [data-v="set"] { display: block; }
+        .main[data-sheet="set"] .set-btn { color: var(--ink); background: var(--hover); }
+        /* 抽屉开着时面板至少这么高：面板很矮时（没打开作业、清单还在读）抽屉不会被截掉，面板跟着抽屉一起长高。
+           抽屉盖住了底栏，提示就落到最底下；180 = 设置那一行（说明折成两行也够）+ 提示的高度，提示不会压住开关 */
+        .main:not([data-sheet=""]) { min-height: calc(var(--head-h) + 180px); }
+        .main:not([data-sheet=""]) .toast { bottom: 12px; }
+        /* 设置：一行一项，名字和说明在左、开关在右，整行都能点 */
+        .set-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 16px; padding: 6px 0; cursor: pointer; }
+        .set-t { font-size: 13px; font-weight: 600; }
+        .set-d { grid-column: 1; font-size: 11.5px; line-height: 1.6; color: var(--muted); }
+        .set-row .sw { grid-column: 2; grid-row: 1 / span 2; }
         .sh-body { flex: 1; min-height: 0; padding: 4px 16px 16px; overflow: auto; scrollbar-width: thin; }
         .grp + .grp { margin-top: 16px; }
         .g-h { font-size: 11.5px; color: var(--muted); margin-bottom: 8px; }
@@ -1441,7 +1494,7 @@
         .b-msg button { border: 0; background: none; padding: 0; font-size: 11.5px; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
         .batch[data-run="1"] .b-swap, .batch[data-run="1"] .b-sum, .batch[data-run="1"] .b-list .ck, .batch[data-run="1"] .b-opt, .batch[data-run="1"] .b-ans { pointer-events: none; opacity: .5; }
         @keyframes zz-pulse { to { opacity: .3; } }
-        @media (prefers-reduced-motion: reduce) { .zz.enter .shell, .zz.leave .shell, .result.r-enter { animation-duration: 1ms; } .sheet, .toast { transition: none; } .strip i { animation: none !important; } }
+        @media (prefers-reduced-motion: reduce) { .zz.enter .shell, .zz.leave .shell, .result.r-enter { animation-duration: 1ms; } .main, .sheet, .toast { transition: none; } .strip i { animation: none !important; } }
     `;
 
     const TAPE = `
@@ -1679,6 +1732,7 @@
       <header class="head">
         <span class="mark"></span><span class="brand">小雅粘粘粘</span><button class="ver" type="button" data-act="log" title="单击复制诊断日志，双击下载完整日志">v${VERSION}</button><span class="sp"></span>
         <button class="ib" type="button" data-act="result" data-res-btn title="提交结果" hidden>${ICON.score}</button>
+        <button class="ib set-btn" type="button" data-act="set" title="设置">${ICON.set}</button>
         <button class="ib theme-btn" type="button" data-act="theme">${ICON.theme}</button>
         <button class="ib" type="button" data-act="close" title="收起">${ICON.min}</button>
       </header>
@@ -1768,7 +1822,7 @@
       </footer>
       <div class="toast" role="status"></div>
       <div class="sheet-clip"><div class="sheet">
-        <div class="sh-head"><span data-v="export">导出</span><span data-v="img">题目图片</span><span class="sp"></span><button class="ib" type="button" data-act="sheet-close" title="关闭">${ICON.x}</button></div>
+        <div class="sh-head"><span data-v="export">导出</span><span data-v="img">题目图片</span><span data-v="set">设置</span><span class="sp"></span><button class="ib" type="button" data-act="sheet-close" title="关闭">${ICON.x}</button></div>
         <div class="sh-body" data-v="export">
           <div class="grp">
             <div class="g-h">给 AI 看</div>
@@ -1785,6 +1839,9 @@
           </div>
         </div>
         <div class="sh-body" data-v="img"><div class="imgs"></div></div>
+        <div class="sh-body" data-v="set">
+          <label class="set-row"><span class="set-t">解除下载限制</span><span class="set-d">老师设了不许下载的课件，平台上的下载按钮也能点。</span><button class="sw dl-sw" type="button" role="switch" data-act="dl-switch" aria-label="解除下载限制"></button></label>
+        </div>
       </div></div>
     </section>
   </div>
@@ -1819,7 +1876,7 @@
                 bar: $('.bar'), barFill: $('.bar i'), sMsg: $('.s-msg'), imgCount: $('.img-count'), imgBtn: $('[data-v-open="img"]'),
                 toast: $('.toast'), courseInput: $('.course-input'), imgs: $('.imgs'),
                 score: $('.r-score'), of: $('.of'), counts: $('.counts'), rNote: $('.r-note'), list: $('.list'),
-                themeBtn: $('.theme-btn'), guide: $('.guide'),
+                themeBtn: $('.theme-btn'), guide: $('.guide'), dlSw: $('.dl-sw'),
                 batch: $('.batch'), bName: $('.b-name'), bAll: $('.b-sum .ck'), bCount: $('.b-count'), bList: $('.b-list'), strip: $('.strip'),
                 bGo: $('[data-act="b-go"]'), bMsg: $('.b-msg'), bPick: $('.b-pick-l'), bHint: $('.b-hint p'), bReload: $('[data-act="b-reload"]'), bSwap: $('.b-hint [data-act="b-swap"]'),
             };
@@ -1862,7 +1919,8 @@
 
         function prefsToControls() {
             root.querySelectorAll('.seg').forEach(seg => seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.val === prefs[seg.dataset.pref]))));
-            root.querySelectorAll('.sw').forEach(sw => sw.setAttribute('aria-checked', String(prefs.withAnswers)));
+            root.querySelectorAll('[data-act="switch"]').forEach(sw => sw.setAttribute('aria-checked', String(prefs.withAnswers)));
+            el.dlSw.setAttribute('aria-checked', String(prefs.download));
             root.querySelectorAll('[data-dep]').forEach(dep => { dep.dataset.off = prefs.withAnswers ? '0' : '1'; });
         }
 
@@ -2446,6 +2504,13 @@
                     if (el.main.dataset.sheet === 'img') images();
                     break;
                 case 'sheet-close': el.main.dataset.sheet = ''; break;
+                case 'set': el.main.dataset.sheet = el.main.dataset.sheet === 'set' ? '' : 'set'; break;
+                case 'dl-switch':
+                    prefs.download = !prefs.download;
+                    savePrefs();
+                    prefsToControls();
+                    toast(prefs.download ? '已解除下载限制，刷新页面后生效。' : '已恢复老师的下载设置，刷新页面后生效。');
+                    break;
                 case 'seg': {
                     const seg = t.parentElement;
                     prefs[seg.dataset.pref] = t.dataset.val;
